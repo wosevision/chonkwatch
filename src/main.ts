@@ -2,11 +2,14 @@ import "./style.css";
 
 import { WeightChart } from "./chart.ts";
 import { dedupe, loadBundledReadings } from "./data-loader.ts";
+import { filterByRange } from "./filter.ts";
 import { computeStats } from "./stats.ts";
 import { setupUpload } from "./upload.ts";
 import {
   CAT_IDS,
   CATS,
+  DEFAULT_DATE_RANGE,
+  type DateRangeId,
   type ViewMode,
   type WeightReading,
 } from "./types.ts";
@@ -17,13 +20,20 @@ const dropZone = document.body;
 const viewRadios = document.querySelectorAll<HTMLInputElement>(
   'input[name="view"]',
 );
+const rangeRadios = document.querySelectorAll<HTMLInputElement>(
+  'input[name="range"]',
+);
+const resetZoom = requireEl<HTMLButtonElement>("#reset-zoom");
 const sourceList = requireEl<HTMLUListElement>("#source-list");
 const status = requireEl<HTMLParagraphElement>("#status");
 
-let readings: WeightReading[] = dedupe(loadBundledReadings());
+let allReadings: WeightReading[] = dedupe(loadBundledReadings());
 let viewMode: ViewMode = "daily";
+let rangeId: DateRangeId = DEFAULT_DATE_RANGE;
 
-const chart = new WeightChart(canvas);
+const chart = new WeightChart(canvas, (zoomed) => {
+  resetZoom.hidden = !zoomed;
+});
 
 renderAll();
 
@@ -31,26 +41,46 @@ viewRadios.forEach((radio) => {
   radio.addEventListener("change", () => {
     if (!radio.checked) return;
     viewMode = radio.value as ViewMode;
-    chart.update(readings, viewMode);
+    chart.update(visibleReadings(), viewMode);
   });
 });
 
+rangeRadios.forEach((radio) => {
+  if (radio.value === rangeId) radio.checked = true;
+  radio.addEventListener("change", () => {
+    if (!radio.checked) return;
+    rangeId = radio.value as DateRangeId;
+    chart.update(visibleReadings(), viewMode);
+    chart.resetZoom();
+  });
+});
+
+resetZoom.addEventListener("click", () => {
+  chart.resetZoom();
+});
+
 setupUpload(fileInput, dropZone, (added, filenames) => {
-  readings = dedupe([...readings, ...added]);
+  allReadings = dedupe([...allReadings, ...added]);
   renderAll();
   status.textContent = `Added ${added.length} reading${
     added.length === 1 ? "" : "s"
   } from ${filenames.join(", ")}.`;
 });
 
-function renderAll(): void {
-  chart.update(readings, viewMode);
-  renderStats();
-  renderSources();
+function visibleReadings(): WeightReading[] {
+  return filterByRange(allReadings, rangeId);
 }
 
-function renderStats(): void {
-  const stats = computeStats(readings);
+function renderAll(): void {
+  const visible = visibleReadings();
+  chart.update(visible, viewMode);
+  renderStats(visible);
+  renderSources();
+  renderRangeAvailability();
+}
+
+function renderStats(visible: WeightReading[]): void {
+  const stats = computeStats(visible);
   for (const catId of CAT_IDS) {
     setText(`#${catId}-latest`, formatLatest(stats[catId]));
     setText(`#${catId}-avg`, formatKg(stats[catId].avg30dKg));
@@ -64,7 +94,7 @@ function renderStats(): void {
 
 function renderSources(): void {
   const sources = new Map<string, number>();
-  for (const r of readings) {
+  for (const r of allReadings) {
     sources.set(r.source, (sources.get(r.source) ?? 0) + 1);
   }
   sourceList.innerHTML = "";
@@ -83,6 +113,27 @@ function renderSources(): void {
     li.textContent = `${name} — ${count} reading${count === 1 ? "" : "s"}`;
     sourceList.appendChild(li);
   }
+}
+
+/** Disable preset buttons whose window contains zero readings — keeps the
+ * user from picking a range that wipes the chart on a thin dataset. */
+function renderRangeAvailability(): void {
+  rangeRadios.forEach((radio) => {
+    const id = radio.value as DateRangeId;
+    const count = filterByRange(allReadings, id).length;
+    const wrapper = radio.closest("label");
+    radio.disabled = count === 0 && id !== "all";
+    if (wrapper) wrapper.classList.toggle("is-disabled", radio.disabled);
+    if (radio.disabled && radio.checked) {
+      const fallback = Array.from(rangeRadios).find(
+        (r) => r.value === "all",
+      );
+      if (fallback) {
+        fallback.checked = true;
+        rangeId = "all";
+      }
+    }
+  });
 }
 
 function formatLatest(s: { latestKg: number | null; latestAt: Date | null }): string {

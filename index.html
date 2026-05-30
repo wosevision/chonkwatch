@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>catweight — Jasper &amp; Enzo</title>
   </head>
   <body>
@@ -17,7 +18,7 @@
 
     <main>
       <section class="controls">
-        <fieldset class="view-toggle">
+        <fieldset class="segmented">
           <legend>View</legend>
           <label>
             <input type="radio" name="view" value="daily" checked />
@@ -26,6 +27,26 @@
           <label>
             <input type="radio" name="view" value="raw" />
             <span>Raw readings</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="segmented">
+          <legend>Range</legend>
+          <label>
+            <input type="radio" name="range" value="all" checked />
+            <span>All</span>
+          </label>
+          <label>
+            <input type="radio" name="range" value="1y" />
+            <span>1Y</span>
+          </label>
+          <label>
+            <input type="radio" name="range" value="90d" />
+            <span>90D</span>
+          </label>
+          <label>
+            <input type="radio" name="range" value="30d" />
+            <span>30D</span>
           </label>
         </fieldset>
 
@@ -44,7 +65,13 @@
       </section>
 
       <section class="chart-wrap">
+        <button id="reset-zoom" type="button" class="reset-zoom" hidden>
+          Reset zoom
+        </button>
         <canvas id="chart"></canvas>
+        <p class="chart-hint">
+          Wheel or pinch to zoom · Alt-drag to box-zoom · Shift-drag to pan
+        </p>
       </section>
 
       <section class="cats">

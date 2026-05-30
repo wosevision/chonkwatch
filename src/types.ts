@@ -30,3 +30,15 @@ export interface DailyAggregate {
 }
 
 export type ViewMode = "daily" | "raw";
+
+export type DateRangeId = "all" | "1y" | "90d" | "30d";
+
+export const DATE_RANGES: Record<DateRangeId, { label: string; days: number | null }> = {
+  all: { label: "All", days: null },
+  "1y": { label: "1Y", days: 365 },
+  "90d": { label: "90D", days: 90 },
+  "30d": { label: "30D", days: 30 },
+};
+
+/** Default to "All" since most users will only have a few months of data. */
+export const DEFAULT_DATE_RANGE: DateRangeId = "all";

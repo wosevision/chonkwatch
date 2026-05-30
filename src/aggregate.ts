@@ -36,6 +36,26 @@ export function aggregateDailyMedian(
   return out;
 }
 
+/**
+ * Trailing rolling median across a sequence of values. Operates on
+ * data-point indices rather than calendar days, so a sparse week will still
+ * yield a meaningful smoother (at the cost of representing a longer stretch
+ * of wall-clock time).
+ *
+ * The first `windowSize - 1` outputs are computed against shorter windows so
+ * the smoother still has values at the edges instead of being all-`null`.
+ */
+export function rollingMedian(values: number[], windowSize: number): number[] {
+  if (windowSize <= 1) return values.slice();
+  const out: number[] = new Array(values.length);
+  for (let i = 0; i < values.length; i++) {
+    const start = Math.max(0, i - windowSize + 1);
+    const slice = values.slice(start, i + 1).sort((a, b) => a - b);
+    out[i] = median(slice);
+  }
+  return out;
+}
+
 /** YYYY-MM-DD in the user's local timezone (matches how the CSV is read). */
 export function localIsoDate(d: Date): string {
   const y = d.getFullYear();

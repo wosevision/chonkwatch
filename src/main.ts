@@ -26,6 +26,7 @@ import {
 } from "./types.ts";
 
 const canvas = requireEl<HTMLCanvasElement>("#chart");
+const chartWrap = requireEl<HTMLElement>(".chart-wrap");
 const visitsCanvas = requireEl<HTMLCanvasElement>("#visits-chart");
 const fileInput = requireEl<HTMLInputElement>("#file-input");
 const dropZone = document.body;
@@ -72,6 +73,7 @@ viewRadios.forEach((radio) => {
     if (!radio.checked) return;
     viewMode = radio.value as ViewMode;
     overrideHint.hidden = viewMode !== "raw";
+    chartWrap.classList.toggle("is-raw", viewMode === "raw");
     renderChartOnly();
   });
 });

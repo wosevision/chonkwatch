@@ -68,6 +68,22 @@
         <button id="reset-zoom" type="button" class="reset-zoom" hidden>
           Reset zoom
         </button>
+        <p class="chart-legend" id="chart-legend">
+          <span class="chart-legend__item">
+            <span
+              class="chart-legend__swatch chart-legend__swatch--band"
+              aria-hidden="true"
+            ></span>
+            <span>shaded area = each day's min–max range</span>
+          </span>
+          <span class="chart-legend__item">
+            <span
+              class="chart-legend__swatch chart-legend__swatch--trend"
+              aria-hidden="true"
+            ></span>
+            <span>dashed line = 7-day rolling median trend</span>
+          </span>
+        </p>
         <canvas id="chart"></canvas>
         <p id="override-hint" class="chart-hint chart-hint--override" hidden>
           Click a raw point to reassign or ignore it.

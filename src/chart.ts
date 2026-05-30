@@ -120,9 +120,7 @@ function buildDataset(
     };
   }
 
-  const aggregates = aggregateDailyMedian(forCat).filter(
-    (a) => a.catId === catId,
-  );
+  const aggregates = aggregateDailyMedian(forCat);
   const data = aggregates.map((a) => ({
     x: new Date(`${a.date}T12:00:00`).getTime(),
     y: a.median,

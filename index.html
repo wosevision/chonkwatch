@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>catweight — Jasper &amp; Enzo</title>
+  </head>
+  <body>
+    <div class="drop-overlay" aria-hidden="true">
+      <div class="drop-overlay__inner">Drop CSV exports to add them</div>
+    </div>
+
+    <header class="site-header">
+      <h1>catweight</h1>
+      <p class="subtitle">Jasper &amp; Enzo, weighed by litter box</p>
+    </header>
+
+    <main>
+      <section class="controls">
+        <fieldset class="view-toggle">
+          <legend>View</legend>
+          <label>
+            <input type="radio" name="view" value="daily" checked />
+            <span>Daily median</span>
+          </label>
+          <label>
+            <input type="radio" name="view" value="raw" />
+            <span>Raw readings</span>
+          </label>
+        </fieldset>
+
+        <div class="upload">
+          <label for="file-input" class="upload-button">Add CSV export(s)</label>
+          <input
+            type="file"
+            id="file-input"
+            accept=".csv,text/csv"
+            multiple
+            hidden
+          />
+          <p class="hint">Or drop files anywhere on the page.</p>
+          <p id="status" class="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </section>
+
+      <section class="cats">
+        <article class="cat-card" data-cat="jasper">
+          <header>
+            <span class="swatch" aria-hidden="true"></span>
+            <h2>Jasper</h2>
+          </header>
+          <dl>
+            <div><dt>Latest</dt><dd id="jasper-latest">—</dd></div>
+            <div><dt>30-day avg</dt><dd id="jasper-avg">—</dd></div>
+            <div><dt>Readings</dt><dd id="jasper-count">—</dd></div>
+          </dl>
+        </article>
+        <article class="cat-card" data-cat="enzo">
+          <header>
+            <span class="swatch" aria-hidden="true"></span>
+            <h2>Enzo</h2>
+          </header>
+          <dl>
+            <div><dt>Latest</dt><dd id="enzo-latest">—</dd></div>
+            <div><dt>30-day avg</dt><dd id="enzo-avg">—</dd></div>
+            <div><dt>Readings</dt><dd id="enzo-count">—</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="sources">
+        <h2>Loaded sources</h2>
+        <ul id="source-list"></ul>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

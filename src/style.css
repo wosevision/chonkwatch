@@ -554,3 +554,107 @@ main {
   color: var(--text);
   border-color: var(--text-muted);
 }
+
+/* ============================================================
+ * Responsive breakpoints
+ *
+ * - 720px: tablet / large phone landscape. Stack the controls bar so the
+ *   View / Range / Upload sections each get a full row, and tighten paddings.
+ * - 480px: portrait phones. Drop the chart card height, shrink the visits
+ *   strip, single-column cat cards, and let the override popup fill most of
+ *   the viewport so all three reassign buttons stay tappable.
+ * - 360px: very small phones. Stat columns inside each cat card fall to a
+ *   single column so values like "5.50 kg · 5/30/2026" don't truncate.
+ *
+ * The chart canvases themselves are `responsive: true` and resize from their
+ * container's height, so the breakpoint changes ripple through automatically.
+ * ============================================================ */
+
+@media (max-width: 720px) {
+  .site-header {
+    padding: 24px 16px 8px;
+  }
+
+  .site-header h1 {
+    font-size: 22px;
+  }
+
+  main {
+    padding: 12px 12px 32px;
+    gap: 12px;
+  }
+
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .upload {
+    align-items: stretch;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .upload-button {
+    text-align: center;
+  }
+
+  .hint,
+  .status {
+    text-align: left;
+  }
+
+  .chart-wrap {
+    height: 360px;
+    padding: 16px 12px 8px;
+  }
+
+  .chart-hint {
+    text-align: left;
+  }
+
+  .visits-wrap,
+  .sources {
+    padding: 12px 14px;
+  }
+
+  .cats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-wrap {
+    height: 320px;
+  }
+
+  .visits-canvas-wrap {
+    height: 96px;
+  }
+
+  .override-popup {
+    width: calc(100vw - 24px);
+    max-width: 320px;
+  }
+}
+
+@media (max-width: 360px) {
+  .cat-card dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Devices whose primary input is touch never see modifier keys, so the
+ * desktop interaction hints are misleading. The chart still works on touch
+ * (one-finger pan + pinch zoom — see chart.ts), and the override hint stays
+ * visible because tap-to-reassign works fine. */
+@media (pointer: coarse) {
+  .chart-hint:not(.chart-hint--override) {
+    display: none;
+  }
+  .hint {
+    display: none;
+  }
+}

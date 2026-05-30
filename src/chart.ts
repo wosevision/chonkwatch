@@ -39,6 +39,15 @@ Chart.register(
  * while still being responsive to a real shift in weight. */
 const TRENDLINE_WINDOW_DAYS = 7;
 
+/** Touch-primary devices have no Shift/Alt to gate pan and box-zoom on, so
+ * we wire those gestures up without modifiers there. Computed once at module
+ * load — hybrid devices effectively pick the desktop config (their primary
+ * pointer is fine), and they can still pinch-zoom either way. */
+const IS_TOUCH_PRIMARY =
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer: coarse)").matches;
+
 interface BasePoint {
   x: number;
   y: number;
@@ -232,11 +241,18 @@ export class WeightChart {
           },
           zoom: {
             limits: {},
-            pan: { enabled: true, mode: "x", modifierKey: "shift" },
+            pan: IS_TOUCH_PRIMARY
+              ? { enabled: true, mode: "x" }
+              : { enabled: true, mode: "x", modifierKey: "shift" },
             zoom: {
-              wheel: { enabled: true },
+              wheel: { enabled: !IS_TOUCH_PRIMARY },
               pinch: { enabled: true },
-              drag: { enabled: true, modifierKey: "alt" },
+              // Box-zoom (drag-a-rectangle) would conflict with one-finger
+              // pan on touch, so we disable it there. Pinch covers the same
+              // territory on touch anyway.
+              drag: IS_TOUCH_PRIMARY
+                ? { enabled: false }
+                : { enabled: true, modifierKey: "alt" },
               mode: "x",
               onZoomComplete: ({ chart }) => {
                 this.handlers.onZoomChange?.(isZoomed(chart));

@@ -132,6 +132,22 @@ sample file in `data/`. Known quirks:
   unit and warns + skips on anything other than `kg`, since a unit mix-up
   would silently corrupt the chart.
 
+## Responsive design
+
+The app is meant to be usable from a phone as well as a desktop browser, so
+two things to keep in mind when adding UI:
+
+- `src/style.css` declares responsive breakpoints in a single block at the
+  bottom — 720 px (stack the controls bar), 480 px (smaller chart heights +
+  full-width override popup), 360 px (single-column cat-card stats). New
+  components should fit into that ladder rather than introducing one-off
+  `@media` blocks scattered through the file.
+- Touch-primary devices (`@media (pointer: coarse)`) hide desktop-only
+  interaction hints via the same CSS file, and `chart.ts` flips its zoom
+  plugin config so pan + box-zoom work without modifier keys (touch has no
+  Shift/Alt). The detection runs once at module load — fine for mobile
+  Safari/Chrome/Firefox; hybrid devices effectively get the desktop config.
+
 ## Conventions
 
 - TypeScript with `strict` on. Browser code uses `tsconfig.app.json`; Node

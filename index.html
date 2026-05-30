@@ -69,9 +69,19 @@
           Reset zoom
         </button>
         <canvas id="chart"></canvas>
+        <p id="override-hint" class="chart-hint chart-hint--override" hidden>
+          Click a raw point to reassign or ignore it.
+        </p>
         <p class="chart-hint">
           Wheel or pinch to zoom · Alt-drag to box-zoom · Shift-drag to pan
         </p>
+      </section>
+
+      <section class="visits-wrap" aria-label="Daily visits">
+        <h2 class="section-title">Visits per day</h2>
+        <div class="visits-canvas-wrap">
+          <canvas id="visits-chart"></canvas>
+        </div>
       </section>
 
       <section class="cats">
@@ -79,6 +89,14 @@
           <header>
             <span class="swatch" aria-hidden="true"></span>
             <h2>Jasper</h2>
+            <button
+              type="button"
+              class="cat-toggle"
+              aria-pressed="false"
+              aria-label="Hide Jasper"
+            >
+              Hide
+            </button>
           </header>
           <dl>
             <div><dt>Latest</dt><dd id="jasper-latest">—</dd></div>
@@ -90,6 +108,14 @@
           <header>
             <span class="swatch" aria-hidden="true"></span>
             <h2>Enzo</h2>
+            <button
+              type="button"
+              class="cat-toggle"
+              aria-pressed="false"
+              aria-label="Hide Enzo"
+            >
+              Hide
+            </button>
           </header>
           <dl>
             <div><dt>Latest</dt><dd id="enzo-latest">—</dd></div>
@@ -100,10 +126,39 @@
       </section>
 
       <section class="sources">
-        <h2>Loaded sources</h2>
+        <h2 class="section-title">Loaded sources</h2>
         <ul id="source-list"></ul>
       </section>
     </main>
+
+    <div
+      id="override-popup"
+      class="override-popup"
+      role="dialog"
+      aria-label="Reassign reading"
+      hidden
+    >
+      <header class="override-popup__header">
+        <strong>Reassign reading</strong>
+        <button
+          id="override-close"
+          type="button"
+          class="override-popup__close"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </header>
+      <p id="override-meta" class="override-popup__meta"></p>
+      <div class="override-popup__buttons">
+        <button type="button" data-override="jasper">Jasper</button>
+        <button type="button" data-override="enzo">Enzo</button>
+        <button type="button" data-override="ignore">Ignore</button>
+      </div>
+      <button id="override-clear" type="button" class="override-popup__clear">
+        Clear override
+      </button>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

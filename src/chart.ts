@@ -14,6 +14,7 @@ import zoomPlugin from "chartjs-plugin-zoom";
 import type { ChartConfiguration, ChartDataset } from "chart.js";
 
 import { aggregateDailyMedian, rollingMedian } from "./aggregate.ts";
+import { partitionByOutlier } from "./outliers.ts";
 import {
   CAT_IDS,
   CATS,
@@ -44,7 +45,6 @@ interface BasePoint {
 }
 
 interface DailyPoint extends BasePoint {
-  /** Number of readings on this day for this cat. */
   count: number;
   min: number;
   max: number;
@@ -52,26 +52,62 @@ interface DailyPoint extends BasePoint {
 
 interface RawPoint extends BasePoint {
   source: string;
+  /** `readingKey` from `types.ts`, used to find the reading on click for
+   * the override popup. */
+  key: string;
+  isOutlier: boolean;
+  catId: CatId;
 }
 
-/** Identifies which kind of dataset a Chart.js dataset slot represents. */
-type DatasetKind = "median" | "trend" | "band-low" | "band-high" | "raw";
+type DatasetKind =
+  | "median"
+  | "trend"
+  | "band-low"
+  | "band-high"
+  | "raw"
+  | "raw-outlier";
 
 interface DatasetMeta {
   catId: CatId;
   kind: DatasetKind;
 }
 
+export interface RawClickInfo {
+  key: string;
+  catId: CatId;
+  weightKg: number;
+  timestamp: Date;
+  /** Pixel position of the click within the chart canvas (for popup
+   * placement). */
+  pageX: number;
+  pageY: number;
+}
+
+export interface ChartUpdate {
+  readings: WeightReading[];
+  view: ViewMode;
+  hidden: Set<CatId>;
+  outliers: Set<string>;
+}
+
+export interface ChartHandlers {
+  onZoomChange?: (zoomed: boolean) => void;
+  onRawClick?: (info: RawClickInfo) => void;
+}
+
 /**
  * Single Chart.js instance that flips between daily-median and raw views by
- * swapping its datasets. Kept stateful so Chart.js can animate transitions,
- * resize cleanly, and the zoom plugin's internal pan/zoom state survives.
+ * swapping its datasets. Stateful so Chart.js can animate transitions, the
+ * zoom plugin's pan/zoom state survives, and theme changes can be applied
+ * without rebuilding everything from scratch.
  */
 export class WeightChart {
   private chart: Chart<"line", BasePoint[]>;
   private themeMq: MediaQueryList;
+  private handlers: ChartHandlers;
 
-  constructor(canvas: HTMLCanvasElement, onZoomChange?: (zoomed: boolean) => void) {
+  constructor(canvas: HTMLCanvasElement, handlers: ChartHandlers = {}) {
+    this.handlers = handlers;
     this.themeMq = window.matchMedia("(prefers-color-scheme: dark)");
     this.applyTheme();
     this.themeMq.addEventListener("change", this.handleThemeChange);
@@ -85,6 +121,35 @@ export class WeightChart {
         parsing: false,
         animation: false,
         interaction: { mode: "nearest", intersect: false },
+        onClick: (event, _elements, chart) => {
+          if (!this.handlers.onRawClick) return;
+          // Use 'point' mode here so we only fire on actual point hits — the
+          // `interaction.mode: nearest` config used for tooltips is too
+          // permissive for click-to-edit.
+          const items = chart.getElementsAtEventForMode(
+            event.native ?? (event as unknown as Event),
+            "point",
+            { intersect: true },
+            false,
+          );
+          if (items.length === 0) return;
+          const item = items[0];
+          const ds = chart.data.datasets[item.datasetIndex];
+          const meta = datasetMeta(ds);
+          if (!meta || (meta.kind !== "raw" && meta.kind !== "raw-outlier")) {
+            return;
+          }
+          const point = ds.data[item.index] as RawPoint;
+          const native = event.native as MouseEvent | undefined;
+          this.handlers.onRawClick({
+            key: point.key,
+            catId: point.catId,
+            weightKg: point.y,
+            timestamp: new Date(point.x),
+            pageX: native?.pageX ?? 0,
+            pageY: native?.pageY ?? 0,
+          });
+        },
         scales: {
           x: {
             type: "time",
@@ -115,7 +180,10 @@ export class WeightChart {
           tooltip: {
             filter: (item) => {
               const meta = datasetMeta(item.dataset);
-              return !meta || meta.kind !== "band-low" && meta.kind !== "band-high";
+              return (
+                !meta ||
+                (meta.kind !== "band-low" && meta.kind !== "band-high")
+              );
             },
             callbacks: {
               title: (items) => {
@@ -127,10 +195,10 @@ export class WeightChart {
               label: (ctx) => {
                 const meta = datasetMeta(ctx.dataset);
                 if (!meta) return ctx.formattedValue;
-
-                if (meta.kind === "raw") {
+                if (meta.kind === "raw" || meta.kind === "raw-outlier") {
                   const p = ctx.raw as RawPoint;
-                  return `${ctx.dataset.label}: ${p.y.toFixed(2)} kg`;
+                  const tag = p.isOutlier ? " · ⚠ outlier" : "";
+                  return `${CATS[p.catId].name}: ${p.y.toFixed(2)} kg${tag}`;
                 }
                 if (meta.kind === "median") {
                   const p = ctx.raw as DailyPoint;
@@ -161,7 +229,7 @@ export class WeightChart {
               drag: { enabled: true, modifierKey: "alt" },
               mode: "x",
               onZoomComplete: ({ chart }) => {
-                if (onZoomChange) onZoomChange(isZoomed(chart));
+                this.handlers.onZoomChange?.(isZoomed(chart));
               },
             },
           },
@@ -171,8 +239,15 @@ export class WeightChart {
     this.chart = new Chart(canvas, config);
   }
 
-  update(readings: WeightReading[], view: ViewMode): void {
-    this.chart.data.datasets = buildDatasets(readings, view);
+  update(state: ChartUpdate): void {
+    const visibleReadings = state.readings.filter(
+      (r) => !state.hidden.has(r.catId),
+    );
+    this.chart.data.datasets = buildDatasets(
+      visibleReadings,
+      state.view,
+      state.outliers,
+    );
     this.chart.update();
   }
 
@@ -218,38 +293,73 @@ function gridColor(): string {
 function buildDatasets(
   readings: WeightReading[],
   view: ViewMode,
+  outliers: Set<string>,
 ): ChartDataset<"line", BasePoint[]>[] {
   if (view === "raw") {
-    return CAT_IDS.map((catId) => buildRawDataset(readings, catId));
+    return CAT_IDS.flatMap((catId) =>
+      buildRawDatasets(readings, catId, outliers),
+    );
   }
   return CAT_IDS.flatMap((catId) => buildDailyDatasets(readings, catId));
 }
 
-function buildRawDataset(
+function buildRawDatasets(
   readings: WeightReading[],
   catId: CatId,
-): ChartDataset<"line", BasePoint[]> {
+  outliers: Set<string>,
+): ChartDataset<"line", BasePoint[]>[] {
   const cat = CATS[catId];
-  const data = readings
-    .filter((r) => r.catId === catId)
-    .map<RawPoint>((r) => ({
-      x: r.timestamp.getTime(),
-      y: r.weightKg,
-      source: r.source,
-    }))
-    .sort((a, b) => a.x - b.x);
-  return tagDataset(
-    {
-      label: cat.name,
-      data,
-      borderColor: cat.color,
-      backgroundColor: cat.color,
-      showLine: false,
-      pointRadius: 2.5,
-      pointHoverRadius: 4,
-    },
-    { catId, kind: "raw" },
+  const { normal, outliers: bad } = partitionByOutlier(
+    readings,
+    outliers,
+    catId,
   );
+  const toPoint = (r: WeightReading, isOutlier: boolean): RawPoint => ({
+    x: r.timestamp.getTime(),
+    y: r.weightKg,
+    source: r.source,
+    key: r.key,
+    catId: r.catId,
+    isOutlier,
+  });
+  const datasets: ChartDataset<"line", BasePoint[]>[] = [];
+  if (normal.length > 0) {
+    datasets.push(
+      tagDataset(
+        {
+          label: cat.name,
+          data: normal
+            .map((r) => toPoint(r, false))
+            .sort((a, b) => a.x - b.x),
+          borderColor: cat.color,
+          backgroundColor: cat.color,
+          showLine: false,
+          pointRadius: 2.5,
+          pointHoverRadius: 4,
+        },
+        { catId, kind: "raw" },
+      ),
+    );
+  }
+  if (bad.length > 0) {
+    datasets.push(
+      tagDataset(
+        {
+          label: `${cat.name} outliers`,
+          data: bad.map((r) => toPoint(r, true)).sort((a, b) => a.x - b.x),
+          borderColor: "#dc2626",
+          backgroundColor: cat.color,
+          pointStyle: "rectRot",
+          pointBorderWidth: 1.5,
+          showLine: false,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+        },
+        { catId, kind: "raw-outlier" },
+      ),
+    );
+  }
+  return datasets;
 }
 
 function buildDailyDatasets(
@@ -346,8 +456,9 @@ function buildDailyDatasets(
   ];
 }
 
-/** Attach a small `meta` blob to a dataset so legend/tooltip filters can
- * tell `median`/`raw`/`trend`/`band-*` apart without brittle label matching. */
+/** Attach a small `meta` blob to a dataset so legend/tooltip filters and
+ * the click handler can tell `median`/`raw`/`trend`/`band-*` apart without
+ * brittle label matching. */
 function tagDataset(
   dataset: ChartDataset<"line", BasePoint[]>,
   meta: DatasetMeta,

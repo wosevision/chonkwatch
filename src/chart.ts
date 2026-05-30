@@ -106,25 +106,26 @@ export class WeightChart {
               filter: (legendItem, data) => {
                 const idx = legendItem.datasetIndex;
                 if (idx == null) return true;
-                const meta = (data.datasets[idx] as ChartDataset<"line"> & {
-                  meta?: DatasetMeta;
-                }).meta;
+                const meta = datasetMeta(data.datasets[idx]);
                 if (!meta) return true;
                 return meta.kind === "median" || meta.kind === "raw";
               },
             },
           },
           tooltip: {
+            filter: (item) => {
+              const meta = datasetMeta(item.dataset);
+              return !meta || meta.kind !== "band-low" && meta.kind !== "band-high";
+            },
             callbacks: {
               title: (items) => {
                 if (items.length === 0) return "";
                 const ts = items[0].parsed.x;
+                if (ts == null) return "";
                 return new Date(ts).toLocaleString();
               },
               label: (ctx) => {
-                const meta = (ctx.dataset as ChartDataset<"line"> & {
-                  meta?: DatasetMeta;
-                }).meta;
+                const meta = datasetMeta(ctx.dataset);
                 if (!meta) return ctx.formattedValue;
 
                 if (meta.kind === "raw") {
@@ -133,9 +134,10 @@ export class WeightChart {
                 }
                 if (meta.kind === "median") {
                   const p = ctx.raw as DailyPoint;
-                  const range = p.min === p.max
-                    ? ""
-                    : ` · range ${p.min.toFixed(2)}–${p.max.toFixed(2)} kg`;
+                  const range =
+                    p.min === p.max
+                      ? ""
+                      : ` · range ${p.min.toFixed(2)}–${p.max.toFixed(2)} kg`;
                   const reading = p.count === 1 ? "reading" : "readings";
                   return `${ctx.dataset.label}: ${p.y.toFixed(
                     2,
@@ -146,7 +148,7 @@ export class WeightChart {
                     ctx.raw as BasePoint
                   ).y.toFixed(2)} kg`;
                 }
-                return null;
+                return ctx.formattedValue;
               },
             },
           },
@@ -351,4 +353,9 @@ function tagDataset(
   meta: DatasetMeta,
 ): ChartDataset<"line", BasePoint[]> {
   return Object.assign(dataset, { meta });
+}
+
+function datasetMeta(dataset: unknown): DatasetMeta | undefined {
+  if (!dataset || typeof dataset !== "object") return undefined;
+  return (dataset as { meta?: DatasetMeta }).meta;
 }

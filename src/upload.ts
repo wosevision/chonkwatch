@@ -14,10 +14,16 @@ type UploadHandler = (outcomes: UploadOutcome[], errors: string[]) => void;
  * to the persistence API and locally parsed for immediate feedback. The
  * caller decides what to do with the parsed readings (typically: merge
  * into the in-memory dataset and re-render).
+ *
+ * `overlay` is the visual indicator shown while a drag is in progress. It
+ * starts with the `hidden` attribute set (FOUC guard) and we toggle that
+ * attribute rather than a class so the overlay stays hidden through the
+ * brief window before CSS finishes loading.
  */
 export function setupUpload(
   fileInput: HTMLInputElement,
   dropZone: HTMLElement,
+  overlay: HTMLElement,
   onUpload: UploadHandler,
 ): void {
   fileInput.addEventListener("change", async () => {
@@ -35,18 +41,18 @@ export function setupUpload(
   dropZone.addEventListener("dragenter", (e) => {
     prevent(e);
     dragDepth++;
-    dropZone.classList.add("is-dragging");
+    overlay.hidden = false;
   });
   dropZone.addEventListener("dragover", prevent);
   dropZone.addEventListener("dragleave", (e) => {
     prevent(e);
     dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) dropZone.classList.remove("is-dragging");
+    if (dragDepth === 0) overlay.hidden = true;
   });
   dropZone.addEventListener("drop", async (e) => {
     prevent(e);
     dragDepth = 0;
-    dropZone.classList.remove("is-dragging");
+    overlay.hidden = true;
     const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
     await handleFiles(files, onUpload);
   });

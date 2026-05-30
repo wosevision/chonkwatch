@@ -30,6 +30,7 @@ const chartWrap = requireEl<HTMLElement>(".chart-wrap");
 const visitsCanvas = requireEl<HTMLCanvasElement>("#visits-chart");
 const fileInput = requireEl<HTMLInputElement>("#file-input");
 const dropZone = document.body;
+const dropOverlay = requireEl<HTMLElement>(".drop-overlay");
 const viewRadios = document.querySelectorAll<HTMLInputElement>(
   'input[name="view"]',
 );
@@ -92,7 +93,7 @@ resetZoom.addEventListener("click", () => {
   chart.resetZoom();
 });
 
-setupUpload(fileInput, dropZone, (outcomes, errors) => {
+setupUpload(fileInput, dropZone, dropOverlay, (outcomes, errors) => {
   for (const o of outcomes) {
     rawReadings = [...rawReadings, ...o.readings];
   }

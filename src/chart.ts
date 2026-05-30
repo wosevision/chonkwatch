@@ -191,7 +191,16 @@ export class WeightChart {
                 if (items.length === 0) return "";
                 const ts = items[0].parsed.x;
                 if (ts == null) return "";
-                return new Date(ts).toLocaleString();
+                // Daily-view points (median/trend) are positioned at noon of
+                // the bucket day, so a full datetime would lie ("12:00:00 PM"
+                // for every reading). Show date-only for aggregates and the
+                // real time only for raw individual readings.
+                const meta = datasetMeta(items[0].dataset);
+                const isRaw =
+                  meta?.kind === "raw" || meta?.kind === "raw-outlier";
+                return isRaw
+                  ? new Date(ts).toLocaleString()
+                  : new Date(ts).toLocaleDateString();
               },
               label: (ctx) => {
                 const meta = datasetMeta(ctx.dataset);

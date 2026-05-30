@@ -430,13 +430,16 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.12s ease;
   z-index: 10;
 }
 
-body.is-dragging .drop-overlay {
-  opacity: 1;
+/* `display: flex` above outranks the user-agent `[hidden] { display: none }`
+ * rule (a class selector beats a bare attribute selector), so we re-assert
+ * it. The `hidden` attribute is also our FOUC guard: in Vite dev the CSS is
+ * JS-injected, and without `[hidden]` the overlay flashes full-page on
+ * pageload before our styles arrive. */
+.drop-overlay[hidden] {
+  display: none;
 }
 
 .drop-overlay__inner {

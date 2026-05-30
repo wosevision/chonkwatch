@@ -1,21 +1,28 @@
-import { readUploadedCsv } from "./data-loader.ts";
-import type { WeightReading } from "./types.ts";
+import { uploadAndParse } from "./data-loader.ts";
+import type { RawWeightReading } from "./types.ts";
 
-type UploadHandler = (readings: WeightReading[], filenames: string[]) => void;
+export interface UploadOutcome {
+  filename: string;
+  replaced: boolean;
+  readings: RawWeightReading[];
+}
+
+type UploadHandler = (outcomes: UploadOutcome[], errors: string[]) => void;
 
 /**
- * Wire up file-input + page-wide drag-and-drop for adding CSV exports at
- * runtime. Calls `onReadings` once per drop/select event with the combined
- * results from all accepted files.
+ * Wire up file-input + page-wide drag-and-drop. Each accepted file is sent
+ * to the persistence API and locally parsed for immediate feedback. The
+ * caller decides what to do with the parsed readings (typically: merge
+ * into the in-memory dataset and re-render).
  */
 export function setupUpload(
   fileInput: HTMLInputElement,
   dropZone: HTMLElement,
-  onReadings: UploadHandler,
+  onUpload: UploadHandler,
 ): void {
   fileInput.addEventListener("change", async () => {
     const files = fileInput.files ? Array.from(fileInput.files) : [];
-    await handleFiles(files, onReadings);
+    await handleFiles(files, onUpload);
     fileInput.value = "";
   });
 
@@ -41,29 +48,35 @@ export function setupUpload(
     dragDepth = 0;
     dropZone.classList.remove("is-dragging");
     const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
-    await handleFiles(files, onReadings);
+    await handleFiles(files, onUpload);
   });
 }
 
 async function handleFiles(
   files: File[],
-  onReadings: UploadHandler,
+  onUpload: UploadHandler,
 ): Promise<void> {
   const csvs = files.filter(
     (f) => f.type === "text/csv" || f.name.toLowerCase().endsWith(".csv"),
   );
   if (csvs.length === 0) return;
 
-  const all: WeightReading[] = [];
-  const accepted: string[] = [];
+  const outcomes: UploadOutcome[] = [];
+  const errors: string[] = [];
   for (const file of csvs) {
     try {
-      const readings = await readUploadedCsv(file);
-      all.push(...readings);
-      accepted.push(file.name);
+      const { readings, result } = await uploadAndParse(file);
+      outcomes.push({
+        filename: result.name,
+        replaced: result.replaced,
+        readings,
+      });
     } catch (err) {
-      console.error(`[upload] Failed to read ${file.name}:`, err);
+      console.error(`[upload] Failed to upload ${file.name}:`, err);
+      errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  if (all.length > 0) onReadings(all, accepted);
+  if (outcomes.length > 0 || errors.length > 0) {
+    onUpload(outcomes, errors);
+  }
 }

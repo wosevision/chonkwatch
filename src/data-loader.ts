@@ -1,12 +1,17 @@
-import { exportDateFromFilename, parseCsv } from "./parse.ts";
+import { listFiles, uploadFile, type UploadResult } from "./api.ts";
 import { classifyAll } from "./classify.ts";
-import type { WeightReading } from "./types.ts";
+import { exportDateFromFilename, parseCsv } from "./parse.ts";
+import type {
+  OverridesMap,
+  RawWeightReading,
+  WeightReading,
+} from "./types.ts";
 
 /**
- * Eager glob import of every CSV in `data/`. Each match is resolved to its raw
- * text so we can parse it client-side without a network fetch. Vite handles
- * filesystem watching, so dropping a new monthly export into `data/` and
- * refreshing is enough to see it on the chart.
+ * Eager glob import of every CSV in `data/`. Acts as the fast path on page
+ * load — Vite inlines the contents at build time, so the chart can render
+ * before any network round-trip. The persisted store (Vite dev plugin in
+ * dev, Netlify Blobs in prod) is fetched in parallel and merged on top.
  */
 const bundledCsvs = import.meta.glob("/data/*.csv", {
   query: "?raw",
@@ -14,8 +19,8 @@ const bundledCsvs = import.meta.glob("/data/*.csv", {
   eager: true,
 }) as Record<string, string>;
 
-export function loadBundledReadings(): WeightReading[] {
-  const all: WeightReading[] = [];
+export function loadBundledRaw(): RawWeightReading[] {
+  const all: RawWeightReading[] = [];
   for (const [path, text] of Object.entries(bundledCsvs)) {
     const filename = path.split("/").pop() ?? path;
     const exportDate = exportDateFromFilename(filename);
@@ -25,41 +30,69 @@ export function loadBundledReadings(): WeightReading[] {
       );
       continue;
     }
-    const raw = parseCsv(text, exportDate, filename);
-    all.push(...classifyAll(raw));
+    all.push(...parseCsv(text, exportDate, filename));
   }
   return all;
 }
 
 /**
- * Read a user-uploaded CSV file. Falls back to today as the export date when
- * the filename doesn't carry one — most uploads will be recent exports, and
- * any year-rollover risk is small enough to live with for v1.
+ * Fetch every persisted CSV from the API and parse it. In dev these come
+ * back from `data/` on disk (so they overlap with the bundled glob — the
+ * dedupe pass handles it). In prod they come from Netlify Blobs.
  */
-export async function readUploadedCsv(file: File): Promise<WeightReading[]> {
-  const text = await file.text();
-  const exportDate = exportDateFromFilename(file.name) ?? new Date();
-  if (!exportDateFromFilename(file.name)) {
-    console.warn(
-      `[data-loader] ${file.name} has no YYYY-MM-DD suffix; falling back to today's date for year inference.`,
-    );
+export async function loadPersistedRaw(): Promise<RawWeightReading[]> {
+  const files = await listFiles();
+  const all: RawWeightReading[] = [];
+  for (const file of files) {
+    const exportDate = exportDateFromFilename(file.name);
+    if (!exportDate) {
+      console.warn(
+        `[data-loader] Skipping persisted ${file.name}: filename has no YYYY-MM-DD suffix.`,
+      );
+      continue;
+    }
+    all.push(...parseCsv(file.content, exportDate, file.name));
   }
-  const raw = parseCsv(text, exportDate, file.name);
-  return classifyAll(raw);
+  return all;
 }
 
 /**
- * Deduplicate readings by exact timestamp+weight+cat. Lets the user upload the
- * same export twice (or upload a file that's also bundled) without doubling
- * the underlying datapoints.
+ * Read an uploaded CSV File, persist it server-side via the API, and return
+ * the locally-parsed readings (for instant feedback) alongside the upload
+ * response.
  */
-export function dedupe(readings: WeightReading[]): WeightReading[] {
+export async function uploadAndParse(
+  file: File,
+): Promise<{ readings: RawWeightReading[]; result: UploadResult }> {
+  const text = await file.text();
+  const result = await uploadFile(file.name, text);
+  const exportDate =
+    exportDateFromFilename(result.name) ?? new Date();
+  if (!exportDateFromFilename(result.name)) {
+    console.warn(
+      `[data-loader] ${result.name} has no YYYY-MM-DD suffix; falling back to today's date for year inference.`,
+    );
+  }
+  const readings = parseCsv(text, exportDate, result.name);
+  return { readings, result };
+}
+
+/**
+ * Classify and dedupe raw readings into the canonical dataset for the UI.
+ * Dedupe key is `(timestamp, weight, cat)` — lets the same export coexist
+ * in bundled `data/` and the persisted store without doubling the chart.
+ */
+export function buildDataset(
+  raws: RawWeightReading[],
+  overrides: OverridesMap,
+): WeightReading[] {
+  const classified = classifyAll(raws, overrides);
   const seen = new Set<string>();
   const out: WeightReading[] = [];
-  for (const r of readings) {
-    const key = `${r.timestamp.getTime()}|${r.weightKg}|${r.catId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+  for (const r of classified) {
+    const dedupeKey = `${r.timestamp.getTime()}|${r.weightKg}|${r.catId}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
     out.push(r);
   }
   return out;

@@ -46,10 +46,19 @@ body {
   min-height: 100vh;
 }
 
+/* `overflow-x: clip` is a defensive guardrail. The math says everything fits
+ * (`main` has symmetric `padding` and every card is sized off `width: 100%`),
+ * but Chart.js sometimes briefly sets `canvas.style.width` to a few pixels
+ * wider than the container during the first responsive resize. Without this
+ * clip the right edge can flash past the viewport on phones, which the user
+ * sees as "the right padding got cut off". `clip` (vs `hidden`) is preferred
+ * because it doesn't establish a scrolling container, so it leaves any
+ * `position: sticky` descendants alone. */
 body {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow-x: clip;
 }
 
 .site-header {
@@ -71,8 +80,13 @@ body {
   font-size: 14px;
 }
 
+/* `grid-template-columns: minmax(0, 1fr)` (vs. the implicit `auto`) caps the
+ * column at the parent's content box. Without it, an intrinsic-width canvas
+ * (Chart.js sets `canvas.width` before the first responsive resize) can
+ * stretch the grid column past `main`'s right padding. */
 main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 16px 24px 48px;
   max-width: 1100px;
@@ -199,9 +213,19 @@ main {
   flex-direction: column;
 }
 
+/* `min-width: 0` and `max-width: 100%` belong-and-suspenders against the
+ * Chart.js intrinsic-canvas-width quirk described on `main`. Without these
+ * the canvas can briefly hold open its parent at the default 300px before
+ * the first resize. */
 .chart-wrap canvas {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.visits-canvas-wrap canvas {
+  max-width: 100%;
 }
 
 .chart-hint {
@@ -579,8 +603,12 @@ main {
     font-size: 22px;
   }
 
+  /* Match the header's 16px horizontal inset so the title and the cards line
+   * up at the same gutter. With `width: 100%` cards inside a grid, the
+   * earlier 12px was technically symmetric but read as "no right padding"
+   * because chart axis labels (e.g. "May 28") sit close to the card edge. */
   main {
-    padding: 12px 12px 32px;
+    padding: 12px 16px 32px;
     gap: 12px;
   }
 
@@ -588,7 +616,7 @@ main {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-    padding: 12px 14px;
+    padding: 12px 16px;
   }
 
   .upload {
@@ -608,7 +636,7 @@ main {
 
   .chart-wrap {
     height: 360px;
-    padding: 16px 12px 8px;
+    padding: 16px 14px 8px;
   }
 
   .chart-hint {
@@ -617,11 +645,17 @@ main {
 
   .visits-wrap,
   .sources {
-    padding: 12px 14px;
+    padding: 12px 16px;
   }
 
+  /* `minmax(0, 1fr)` (rather than the default `1fr` which is `minmax(auto,
+   * 1fr)`) is important here: a single-column grid item will otherwise
+   * stretch to fit its widest descendant, and Chart.js canvases briefly have
+   * an intrinsic width of 300px before the first responsive resize. That
+   * intrinsic min was enough to push the column past the parent's content
+   * box on narrow phones. */
   .cats {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

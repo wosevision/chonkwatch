@@ -147,6 +147,18 @@ two things to keep in mind when adding UI:
   plugin config so pan + box-zoom work without modifier keys (touch has no
   Shift/Alt). The detection runs once at module load — fine for mobile
   Safari/Chrome/Firefox; hybrid devices effectively get the desktop config.
+- Two layout guardrails worth knowing about before you "simplify" them:
+  - `main` and `.cats` use `grid-template-columns: minmax(0, 1fr)` rather
+    than the implicit `1fr`. The default min-track-size is `auto`, which
+    lets a too-wide descendant (Chart.js canvases briefly hold a 300 px
+    intrinsic width before the first responsive resize) stretch the column
+    past the parent's content box. `minmax(0, 1fr)` caps the track.
+  - `body` has `overflow-x: clip` and the chart canvases have
+    `min-width: 0; max-width: 100%`. Belt-and-suspenders for the same
+    canvas-resize quirk; without them the right padding visually
+    "disappears" on narrow viewports while Chart.js settles. Prefer `clip`
+    over `hidden` so we don't accidentally promote `body` into a scroll
+    container (breaks `position: sticky`).
 
 ## Conventions
 

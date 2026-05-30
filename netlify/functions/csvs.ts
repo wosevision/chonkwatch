@@ -32,14 +32,18 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   }
 
   if (req.method === "POST") {
-    let body: { name?: unknown; content?: unknown };
+    let body: unknown;
     try {
       body = await req.json();
     } catch {
       return jsonResponse(400, { error: "Invalid JSON body" });
     }
-    const name = String(body.name ?? "");
-    const content = String(body.content ?? "");
+    const obj =
+      body && typeof body === "object"
+        ? (body as { name?: unknown; content?: unknown })
+        : {};
+    const name = String(obj.name ?? "");
+    const content = String(obj.content ?? "");
     if (!SAFE_NAME_RE.test(name)) {
       return jsonResponse(400, {
         error: `Invalid filename: ${name}. Must match ${SAFE_NAME_RE}.`,

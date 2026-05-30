@@ -11,7 +11,7 @@ import type { Context } from "@netlify/functions";
  * merged on the client and deduped by `(timestamp, weight, cat)`.
  */
 
-const STORE_NAME = "catweight-csvs";
+const STORE_NAME = "chonkwatch-csvs";
 const SAFE_NAME_RE = /^[\w.\-]+\.csv$/i;
 
 export default async (req: Request, _context: Context): Promise<Response> => {

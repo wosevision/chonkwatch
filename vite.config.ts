@@ -17,7 +17,7 @@ const SAFE_NAME_RE = /^[\w.\-]+\.csv$/i;
  */
 function csvApiPlugin(): Plugin {
   return {
-    name: "catweight-dev-api",
+    name: "chonkwatch-dev-api",
     configureServer(server) {
       server.middlewares.use("/api/csvs", async (req, res) => {
         try {
@@ -59,7 +59,7 @@ function csvApiPlugin(): Plugin {
 
           sendJson(res, 405, { error: "Method not allowed" });
         } catch (err) {
-          console.error("[catweight-dev-api]", err);
+          console.error("[chonkwatch-dev-api]", err);
           sendJson(res, 500, {
             error: err instanceof Error ? err.message : String(err),
           });

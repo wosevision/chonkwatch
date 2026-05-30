@@ -65,7 +65,7 @@ Implications worth keeping in mind:
 - `netlify.toml` — Netlify build / dev / redirect config. The SPA catch-all
   redirect must come *after* any explicit function paths (the v2 function's
   own `config.path` already wins, but be careful when adding more rewrites).
-- `vite.config.ts` — Vite config + the dev-only `catweight-dev-api` plugin
+- `vite.config.ts` — Vite config + the dev-only `chonkwatch-dev-api` plugin
   that backs `/api/csvs` against the local filesystem.
 - `src/`
   - `main.ts` — entrypoint; orchestrates loading, filters, charts, upload,
@@ -90,7 +90,7 @@ Implications worth keeping in mind:
   - `api.ts` — frontend client for `/api/csvs`. The only place the rest of
     the app talks HTTP.
   - `overrides.ts` — `localStorage`-backed override map under
-    `catweight:overrides:v1`.
+    `chonkwatch:overrides:v1`.
   - `upload.ts` — file-input + page-wide drag-and-drop UI glue. Posts to
     the API and parses locally for instant feedback.
   - `chart.ts` — main weight chart. Builds two views (daily median, raw

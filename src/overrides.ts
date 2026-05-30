@@ -1,6 +1,6 @@
 import type { Override, OverridesMap } from "./types.ts";
 
-const STORAGE_KEY = "catweight:overrides:v1";
+const STORAGE_KEY = "chonkwatch:overrides:v1";
 
 /**
  * Load the override map from localStorage. Returns `{}` if absent or

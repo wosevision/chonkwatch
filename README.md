@@ -1,4 +1,4 @@
-# catweight
+# chonkwatch
 
 A simple data visualization of Jasper's and Enzo's weight over time, sourced
 from CSV exports of a "smart" litter box's proprietary app. Designed to run
@@ -47,7 +47,7 @@ There are two ways to add CSV exports:
    - In dev (Vite): writes the file straight into `data/`. Commit it to
      git when ready.
    - In production (Netlify): stores the file in a Netlify Blobs store
-     named `catweight-csvs`. The function container's filesystem is
+     named `chonkwatch-csvs`. The function container's filesystem is
      read-only at runtime, so prod uploads cannot land in the deployed
      repo. They survive across deploys via Blobs and merge with bundled
      data on every page load.

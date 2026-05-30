@@ -6,17 +6,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.9",
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-plugin-zoom": "^2.2.0",
     "date-fns": "^4.4.0"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.3.0",
+    "@types/node": "^25.9.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.14"
   }

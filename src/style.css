@@ -413,6 +413,13 @@ body.is-dragging .drop-overlay {
   gap: 10px;
 }
 
+/* `display: flex` above outranks the user-agent `[hidden] { display: none }`
+ * rule, so we re-assert it explicitly. Without this the popup is visible on
+ * pageload before any reading has been clicked. */
+.override-popup[hidden] {
+  display: none;
+}
+
 .override-popup__header {
   display: flex;
   align-items: center;

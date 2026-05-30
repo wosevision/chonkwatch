@@ -123,13 +123,14 @@ export class WeightChart {
         interaction: { mode: "nearest", intersect: false },
         onClick: (event, _elements, chart) => {
           if (!this.handlers.onRawClick) return;
-          // Use 'point' mode here so we only fire on actual point hits — the
-          // `interaction.mode: nearest` config used for tooltips is too
-          // permissive for click-to-edit.
+          // Match the tooltip's hit-test mode (`nearest`, `intersect: false`)
+          // so any cursor position that shows a tooltip also registers as a
+          // click. `point` + `intersect: true` was too tight — required the
+          // cursor to be exactly on top of a 2.5 px point.
           const items = chart.getElementsAtEventForMode(
             event.native ?? (event as unknown as Event),
-            "point",
-            { intersect: true },
+            "nearest",
+            { intersect: false },
             false,
           );
           if (items.length === 0) return;

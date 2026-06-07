@@ -1,6 +1,7 @@
 import { listFiles, uploadFile, type UploadResult } from "./api.ts";
 import { classifyAll } from "./classify.ts";
 import { exportDateFromFilename, parseCsv } from "./parse.ts";
+import { isVendorExport, parseVendorCsv } from "./vendor-parse.ts";
 import type {
   OverridesMap,
   RawWeightReading,
@@ -8,12 +9,18 @@ import type {
 } from "./types.ts";
 
 /**
- * Eager glob import of every CSV in `data/`. Acts as the fast path on page
- * load — Vite inlines the contents at build time, so the chart can render
- * before any network round-trip. The persisted store (Vite dev plugin in
- * dev, Netlify Blobs in prod) is fetched in parallel and merged on top.
+ * Eager glob import of every monthly CSV in `data/`. Acts as the fast path
+ * on page load — Vite inlines the contents at build time, so the chart can
+ * render before any network round-trip. The persisted store (Vite dev plugin
+ * in dev, Netlify Blobs in prod) is fetched in parallel and merged on top.
+ *
+ * The pattern intentionally requires an underscore (`poobox_activity_`),
+ * which excludes the dash-separated vendor bulk export
+ * (`poobox_activity-export.csv`) from the bundle. That file is ~1.7 MB and
+ * inlining it into the JS payload would balloon initial load; it's served
+ * via `/api/csvs` instead and parsed client-side after the round-trip.
  */
-const bundledCsvs = import.meta.glob("/data/*.csv", {
+const bundledCsvs = import.meta.glob("/data/poobox_activity_*.csv", {
   query: "?raw",
   import: "default",
   eager: true,
@@ -23,14 +30,7 @@ export function loadBundledRaw(): RawWeightReading[] {
   const all: RawWeightReading[] = [];
   for (const [path, text] of Object.entries(bundledCsvs)) {
     const filename = path.split("/").pop() ?? path;
-    const exportDate = exportDateFromFilename(filename);
-    if (!exportDate) {
-      console.warn(
-        `[data-loader] Skipping ${filename}: filename does not match poobox_activity_YYYY-MM-DD.csv`,
-      );
-      continue;
-    }
-    all.push(...parseCsv(text, exportDate, filename));
+    all.push(...parseOne(text, filename));
   }
   return all;
 }
@@ -38,20 +38,14 @@ export function loadBundledRaw(): RawWeightReading[] {
 /**
  * Fetch every persisted CSV from the API and parse it. In dev these come
  * back from `data/` on disk (so they overlap with the bundled glob — the
- * dedupe pass handles it). In prod they come from Netlify Blobs.
+ * dedupe pass handles it). In prod they come from Netlify Blobs. The
+ * vendor bulk export only flows through this path (it's not in the bundle).
  */
 export async function loadPersistedRaw(): Promise<RawWeightReading[]> {
   const files = await listFiles();
   const all: RawWeightReading[] = [];
   for (const file of files) {
-    const exportDate = exportDateFromFilename(file.name);
-    if (!exportDate) {
-      console.warn(
-        `[data-loader] Skipping persisted ${file.name}: filename has no YYYY-MM-DD suffix.`,
-      );
-      continue;
-    }
-    all.push(...parseCsv(file.content, exportDate, file.name));
+    all.push(...parseOne(file.content, file.name));
   }
   return all;
 }
@@ -66,15 +60,25 @@ export async function uploadAndParse(
 ): Promise<{ readings: RawWeightReading[]; result: UploadResult }> {
   const text = await file.text();
   const result = await uploadFile(file.name, text);
-  const exportDate =
-    exportDateFromFilename(result.name) ?? new Date();
-  if (!exportDateFromFilename(result.name)) {
+  return { readings: parseOne(text, result.name), result };
+}
+
+/**
+ * Format-aware parse dispatch. Sniffs the header to pick between the vendor
+ * bulk export parser and the simple monthly-export parser, so the rest of
+ * the loader doesn't need to care which format a given file uses.
+ */
+function parseOne(text: string, filename: string): RawWeightReading[] {
+  if (isVendorExport(text)) {
+    return parseVendorCsv(text, filename);
+  }
+  const exportDate = exportDateFromFilename(filename) ?? new Date();
+  if (!exportDateFromFilename(filename)) {
     console.warn(
-      `[data-loader] ${result.name} has no YYYY-MM-DD suffix; falling back to today's date for year inference.`,
+      `[data-loader] ${filename} has no YYYY-MM-DD or M-D-YYYY suffix; falling back to today's date for year inference.`,
     );
   }
-  const readings = parseCsv(text, exportDate, result.name);
-  return { readings, result };
+  return parseCsv(text, exportDate, filename);
 }
 
 /**

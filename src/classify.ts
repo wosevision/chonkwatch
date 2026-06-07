@@ -24,8 +24,11 @@ export function classify(reading: RawWeightReading): WeightReading {
 }
 
 /**
- * Classify a batch of raw readings, honoring any per-reading overrides.
- * Readings whose override is `ignore` are dropped from the output.
+ * Classify a batch of raw readings. Resolution order, highest priority first:
+ *   1. User-set override for this reading key (`ignore` drops the row).
+ *   2. Pre-assigned `catId` on the raw reading (used by the vendor-export
+ *      path, which knows the cat from `pet_id`).
+ *   3. The threshold heuristic in `classify`.
  */
 export function classifyAll(
   readings: RawWeightReading[],
@@ -38,6 +41,8 @@ export function classifyAll(
     if (override === "ignore") continue;
     if (override === "jasper" || override === "enzo") {
       out.push({ ...r, catId: override, key });
+    } else if (r.catId) {
+      out.push({ ...r, catId: r.catId, key });
     } else {
       out.push(classify(r));
     }

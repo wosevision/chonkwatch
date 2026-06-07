@@ -7,11 +7,17 @@ export const CATS: Record<CatId, { name: string; color: string }> = {
 
 export const CAT_IDS: readonly CatId[] = ["jasper", "enzo"] as const;
 
-/** A weight reading parsed from a CSV row, before cat assignment. */
+/** A weight reading parsed from a CSV row, before cat assignment.
+ *
+ * Most parsers leave `catId` undefined and lean on `classify.ts`'s threshold
+ * heuristic. The vendor bulk export (see `vendor-parse.ts`) carries a per-row
+ * `pet_id`, so it pre-assigns `catId` and `classifyAll` honors it instead of
+ * the threshold. User-set overrides still win over both. */
 export interface RawWeightReading {
   timestamp: Date;
   weightKg: number;
   source: string;
+  catId?: CatId;
 }
 
 /** A weight reading attributed to a specific cat. */

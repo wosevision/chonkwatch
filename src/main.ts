@@ -9,7 +9,7 @@ import {
 import { filterByRange } from "./filter.ts";
 import { detectOutliers } from "./outliers.ts";
 import { loadOverrides, saveOverrides, setOverride } from "./overrides.ts";
-import { computeStats } from "./stats.ts";
+import { computeStats, type CatStats } from "./stats.ts";
 import { setupUpload } from "./upload.ts";
 import { VisitsChart } from "./visits-chart.ts";
 import {
@@ -143,13 +143,14 @@ function visibleReadings(): WeightReading[] {
 }
 
 function renderAll(): void {
-  const visible = visibleReadings();
+  const all = classifiedReadings();
+  const visible = filterByRange(all, rangeId);
   const outliers = detectOutliers(visible);
   chart.update({ readings: visible, view: viewMode, hidden, outliers });
   visitsChart.update(visible.filter((r) => !hidden.has(r.catId)));
-  renderStats(visible);
-  renderSources();
-  renderRangeAvailability();
+  renderStats(visible, all);
+  renderSources(all);
+  renderRangeAvailability(all);
 }
 
 function renderChartOnly(): void {
@@ -159,16 +160,27 @@ function renderChartOnly(): void {
   visitsChart.update(visible.filter((r) => !hidden.has(r.catId)));
 }
 
-function renderStats(visible: WeightReading[]): void {
+function renderStats(visible: WeightReading[], all: WeightReading[]): void {
   const stats = computeStats(visible);
+  // The note describes a cat's whole history, so it's computed from the full
+  // dataset and stays put as the user switches range.
+  const overall = computeStats(all);
   for (const catId of CAT_IDS) {
-    setText(`#${catId}-latest`, formatLatest(stats[catId]));
-    setText(`#${catId}-avg`, formatKg(stats[catId].avg30dKg));
-    setText(`#${catId}-count`, String(stats[catId].count));
+    const s = stats[catId];
+    setText(`#${catId}-latest`, formatLatest(s));
+    setText(`#${catId}-avg`, formatKg(s.avg30dKg));
+    setText(`#${catId}-count`, String(s.count));
+    setText(`#${catId}-latest-label`, s.ended ? "Last reading" : "Latest");
+    setText(
+      `#${catId}-avg-label`,
+      s.ended ? "Final 30-day avg" : "30-day avg",
+    );
+    setNote(`#${catId}-note`, formatEndedNote(overall[catId], s.count));
     const card = document.querySelector<HTMLElement>(
       `[data-cat="${catId}"]`,
     );
     if (card) {
+      card.classList.toggle("is-ended", s.ended);
       const swatch = card.querySelector<HTMLElement>(".swatch");
       if (swatch) swatch.style.backgroundColor = CATS[catId].color;
       card.classList.toggle("is-hidden", hidden.has(catId));
@@ -184,9 +196,8 @@ function renderStats(visible: WeightReading[]): void {
   }
 }
 
-function renderSources(): void {
+function renderSources(all: WeightReading[]): void {
   const sources = new Map<string, number>();
-  const all = classifiedReadings();
   for (const r of all) {
     sources.set(r.source, (sources.get(r.source) ?? 0) + 1);
   }
@@ -208,8 +219,7 @@ function renderSources(): void {
   }
 }
 
-function renderRangeAvailability(): void {
-  const all = classifiedReadings();
+function renderRangeAvailability(all: WeightReading[]): void {
   rangeRadios.forEach((radio) => {
     const id = radio.value as DateRangeId;
     const count = filterByRange(all, id).length;
@@ -318,6 +328,36 @@ function formatLatest(s: { latestKg: number | null; latestAt: Date | null }): st
 
 function formatKg(value: number | null): string {
   return value == null ? "—" : `${value.toFixed(2)} kg`;
+}
+
+/**
+ * Note shown under an ended cat's name: the span their readings actually
+ * cover, so the card reads as a closed history rather than as live data that
+ * has gone stale. Returns null for cats that are still being weighed.
+ */
+function formatEndedNote(
+  overall: CatStats,
+  visibleCount: number,
+): string | null {
+  if (!overall.ended) return null;
+  if (overall.firstAt == null || overall.latestAt == null) return null;
+  const span = `${formatDay(overall.firstAt)} – ${formatDay(overall.latestAt)}`;
+  return visibleCount === 0 ? `${span} (none in this range)` : span;
+}
+
+function formatDay(date: Date): string {
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function setNote(selector: string, text: string | null): void {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return;
+  el.textContent = text ?? "";
+  el.hidden = text == null;
 }
 
 function setText(selector: string, text: string): void {

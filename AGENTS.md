@@ -12,18 +12,50 @@ Keep it simple — no auth, no telemetry, no analytics.
 
 ## The cats
 
-Two cats share the litter box:
+Two cats shared the litter box:
 
-- **Jasper** — the heavier of the two (~5.6 kg in the initial sample).
-- **Enzo** — the lighter (~4.5 kg).
+- **Jasper** — the heavier of the two (~5.6 kg). **Passed away in June 2026.**
+  His history is intact and stays in the app; only new readings are affected.
+- **Enzo** — the lighter (~4.5 kg). The only cat still being weighed.
 
-Their typical weights are far enough apart that a simple weight threshold
-(`WEIGHT_THRESHOLD_KG` in `src/classify.ts`) reliably attributes a reading to
-one cat or the other. When a specific reading misclassifies, the user can
-fix it via the **per-reading override popup** in raw view (click any point);
-overrides are persisted in `localStorage` (see `src/overrides.ts`). If the
-threshold itself starts looking wrong systematically, that's the signal to
-revisit it — discuss with the user before changing the heuristic.
+Their typical weights were far enough apart that a simple weight threshold
+(`WEIGHT_THRESHOLD_KG` in `src/classify.ts`) reliably tells their historical
+readings apart. When a specific reading misclassifies, the user can fix it via
+the **per-reading override popup** in raw view (click any point); overrides are
+persisted in `localStorage` (see `src/overrides.ts`). If the threshold itself
+starts looking wrong systematically, that's the signal to revisit it — discuss
+with the user before changing the heuristic.
+
+Worth remembering that these are the user's pets, not just rows in a CSV.
+
+### `endedAt` and why the threshold is guarded
+
+`CATS.jasper.endedAt` in `src/types.ts` is the single source of truth for the
+end of Jasper's history. It does two things:
+
+- **Classification** (`thresholdCat` in `classify.ts`): readings after
+  `endedAt` skip the threshold and go to Enzo. This isn't cosmetic — Enzo sits
+  only ~300 g under the 5.0 kg threshold, so without the guard, him gaining a
+  little weight would split his series in two and start regrowing Jasper's,
+  hiding exactly the trend the app exists to show. Note the guard sits *inside*
+  the threshold fallback, so vendor-supplied `catId` and explicit user
+  overrides still take precedence over it.
+- **Presentation**: `computeStats` sets `ended: true`, anchors the 30-day
+  average to the cat's final reading instead of wall-clock `now` (a `now`-based
+  window would always be empty), and `main.ts` relabels the card
+  ("Last reading", "Final 30-day avg") and adds a `.cat-card__note` line
+  showing the span the readings cover, so blanks don't read as missing data.
+
+The date is set to the end of June 2026. The exact day isn't recorded in any
+export — the data jumps from 2026-06-01 (the vendor export's cutoff) straight
+to 2026-07-07 — so it's late enough that Jasper's real final readings still
+classify normally and early enough to guard everything after the gap. **If a
+CSV covering June 2026 is ever imported, ask the user for the precise date**
+rather than letting the approximation silently split that month.
+
+If a new cat ever joins, `endedAt` is per-cat and the guard generalizes, but
+the threshold itself only knows how to separate two cats — that's the part
+that would need rethinking.
 
 ## Architecture (dev vs. prod)
 
@@ -90,7 +122,8 @@ Implications worth keeping in mind:
     module-local variables.
   - `types.ts` — shared types and registries (`CATS`, `CAT_IDS`,
     `DATE_RANGES`), plus the `readingKey` helper used by overrides + the
-    outlier set.
+    outlier set. `CATS[catId].endedAt` closes out a cat's history — see
+    "The cats" above before touching it.
   - `parse.ts` — pure CSV parser for the **monthly consumer-app exports**.
     Returns `RawWeightReading[]`. Handles the `a.m.`/`p.m.` and unit
     quirks, and the year-from-filename inference. Output rows have no
@@ -104,7 +137,8 @@ Implications worth keeping in mind:
   - `classify.ts` — assigns each reading to Jasper or Enzo. Resolution
     order: per-reading override first (`ignore` drops the row), then any
     `catId` already on the raw reading (vendor path), then the threshold
-    heuristic.
+    heuristic — which itself won't attribute a reading to a cat whose
+    `endedAt` has passed.
   - `aggregate.ts` — daily-median aggregation per cat plus a rolling-median
     smoother used by the chart's trendline overlay.
   - `outliers.ts` — MAD-based per-cat outlier detection. Robust to noisy
@@ -127,7 +161,9 @@ Implications worth keeping in mind:
     override popup. Reacts to `prefers-color-scheme` changes.
   - `visits-chart.ts` — small stacked-bar chart under the main chart
     showing how many readings each cat had per day.
-  - `stats.ts` — per-cat summary numbers shown beside the charts.
+  - `stats.ts` — per-cat summary numbers shown beside the charts. Cats with
+    an `endedAt` report `ended: true` and anchor their 30-day average to
+    their final reading rather than `now`.
   - `style.css` — all styles. Plain CSS, no preprocessor; auto dark mode
     via `prefers-color-scheme`.
 - `index.html` — single page; references `/src/main.ts` as a module.

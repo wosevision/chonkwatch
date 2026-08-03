@@ -378,6 +378,19 @@ main {
   color: var(--text);
 }
 
+/* A cat whose history is closed (`CATS[catId].endedAt`). Softened rather than
+ * dimmed — the numbers are final, not stale, and the history stays readable. */
+.cat-card.is-ended .swatch {
+  opacity: 0.6;
+}
+
+.cat-card__note {
+  margin: -6px 0 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .cat-card.is-hidden {
   opacity: 0.5;
 }

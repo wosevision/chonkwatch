@@ -1,7 +1,26 @@
 export type CatId = "jasper" | "enzo";
 
-export const CATS: Record<CatId, { name: string; color: string }> = {
-  jasper: { name: "Jasper", color: "#0ea5e9" },
+/**
+ * `endedAt`, when set, closes a cat's history: no reading after it can belong
+ * to them. It's the single source of truth for both the classification guard
+ * in `classify.ts` and the "ended" presentation of the stats card.
+ */
+export const CATS: Record<
+  CatId,
+  { name: string; color: string; endedAt?: Date }
+> = {
+  jasper: {
+    name: "Jasper",
+    color: "#0ea5e9",
+    /**
+     * Jasper passed away in June 2026. No export pins down the day — the data
+     * jumps straight from 2026-06-01 (the vendor export's cutoff) to
+     * 2026-07-07 — so this sits at the end of June: late enough that his real
+     * final readings still classify normally, early enough to guard every
+     * reading we actually have. Tighten it if a June export ever lands.
+     */
+    endedAt: new Date(2026, 5, 30, 23, 59, 59, 999),
+  },
   enzo: { name: "Enzo", color: "#f59e0b" },
 };
 

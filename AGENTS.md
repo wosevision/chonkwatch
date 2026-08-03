@@ -144,30 +144,38 @@ Implications worth keeping in mind:
 
 ## CSV format gotchas
 
-There are three CSV shapes in the wild — two consumer-app generations and
-one vendor bulk export. The loader sniffs each file's header and routes to
-the right parser. Re-read a sample of each shape in `data/` before
+There are four CSV shapes in the wild — three consumer-app generations
+(which differ only in their timestamp format, so one parser handles all
+three) and one vendor bulk export. The loader sniffs each file's header and
+routes to the right parser. Re-read a sample of each shape in `data/` before
 changing parsing logic.
 
 ### Monthly consumer-app exports (`parse.ts`)
 
-The CSV is messier than it looks. There are two export-tool generations
-in the wild — both supported. Known quirks:
+The CSV is messier than it looks. There are three export-tool generations
+in the wild — all supported. Known quirks:
 
 - Header row: `Activity,Timestamp,Value`.
 - `Activity` may be values other than `Weight recorded` (e.g. usage
   events). The parser only emits weight rows, and matches the activity
   label case-insensitively (older exports capitalize `Weight Recorded`).
-- `Timestamp` lacks a year. Two shapes are accepted:
-  - Current export: `MM-DD H:MM a.m./p.m.` — dash-separated date,
+- `Timestamp` lacks a year. Three shapes are accepted:
+  - Current export: `MM-DD at H:MM a.m./p.m.` — as the previous generation,
+    but with a literal `at` between the date and the time. This one appeared
+    in the 2026-08-02 drop and silently produced zero readings until
+    `TIMESTAMP_RE` learned the optional `at`.
+  - Previous export: `MM-DD H:MM a.m./p.m.` — dash-separated date,
     lowercase meridiem with periods, leading space before the meridiem.
-  - Older export: `M/D H:MMAM/PM` — slash-separated date, uppercase
+  - Oldest export: `M/D H:MMAM/PM` — slash-separated date, uppercase
     meridiem with no periods and no separating space.
-  In both cases the year is inferred from the export filename's date
+  In all cases the year is inferred from the export filename's date
   suffix; rows whose `MM-DD` is later than the export's `MM-DD` are assumed
   to be from the previous year (December rows in a January export, etc.).
-- Don't feed the timestamp string straight to `Date.parse` — both shapes
+- Don't feed the timestamp string straight to `Date.parse` — all shapes
   rely on the dedicated `TIMESTAMP_RE` in `parse.ts`.
+- A timestamp the regex rejects is skipped *silently* (only unit mismatches
+  warn). If a new export ever charts as empty, check `TIMESTAMP_RE` against
+  a sample row first — that's been the failure mode twice now.
 - `Value` is a unit-suffixed string like `"5.5 kg"`. The parser strips the
   unit and warns + skips on anything other than `kg`, since a unit mix-up
   would silently corrupt the chart.

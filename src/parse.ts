@@ -4,13 +4,15 @@ import type { RawWeightReading } from "./types.ts";
  * Parse a `poobox_activity_*.csv` export into raw weight readings.
  *
  * The CSV schema is `Activity,Timestamp,Value` with quirks documented in
- * `AGENTS.md`. The export tool has shipped two slightly different timestamp
- * formats over time, so this parser accepts both interchangeably:
- *   - `MM-DD H:MM a.m./p.m.` (current export, dash-separated, lowercase
- *     periods, leading space before the meridiem).
- *   - `M/D H:MMAM/PM`        (older export, slash-separated, uppercase
+ * `AGENTS.md`. The export tool has shipped three slightly different timestamp
+ * formats over time, so this parser accepts all of them interchangeably:
+ *   - `MM-DD at H:MM a.m./p.m.` (current export — as below, but with a literal
+ *     `at` between the date and the time).
+ *   - `MM-DD H:MM a.m./p.m.` (dash-separated, lowercase periods, leading
+ *     space before the meridiem).
+ *   - `M/D H:MMAM/PM`        (oldest export, slash-separated, uppercase
  *     meridiem with no separating space and no periods).
- * Both lack a year, so we infer it from `exportDate` (typically derived from
+ * All lack a year, so we infer it from `exportDate` (typically derived from
  * the filename — see `exportDateFromFilename`, which also handles two shapes).
  *
  * Non-`Weight recorded` rows (case-insensitive) and malformed rows are skipped
@@ -93,7 +95,7 @@ function splitCsvRow(line: string): string[] {
 }
 
 const TIMESTAMP_RE =
-  /^(\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.|am|pm)$/i;
+  /^(\d{1,2})[-/](\d{1,2})\s+(?:at\s+)?(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.|am|pm)$/i;
 
 function parseTimestamp(raw: string, exportDate: Date): Date | null {
   const match = raw.match(TIMESTAMP_RE);

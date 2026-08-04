@@ -355,13 +355,15 @@ main {
   margin-bottom: 12px;
 }
 
-.cat-card h2 {
+.cat-card h3 {
   margin: 0;
   font-size: 18px;
   flex: 1 1 auto;
+  font-weight: 600;
 }
 
-.cat-toggle {
+.cat-toggle,
+.cat-edit {
   appearance: none;
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -373,7 +375,8 @@ main {
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.cat-toggle:hover {
+.cat-toggle:hover,
+.cat-edit:hover {
   background: var(--surface);
   color: var(--text);
 }
@@ -542,9 +545,11 @@ main {
   color: var(--text-muted);
 }
 
+/* The cat count is user-controlled, so the button grid has to flow rather than
+ * assume a fixed column count. */
 .override-popup__buttons {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
   gap: 6px;
 }
 
@@ -590,6 +595,266 @@ main {
 .override-popup__clear:not(:disabled):hover {
   color: var(--text);
   border-color: var(--text-muted);
+}
+
+/* ============================================================
+ * Cat management
+ * ============================================================ */
+
+.cats-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cats-empty {
+  margin: 0;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Shared button vocabulary for the dialog and the section header. */
+.primary-button,
+.ghost-button,
+.danger-button {
+  appearance: none;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.15s ease, color 0.12s ease;
+}
+
+.primary-button {
+  border: 1px solid transparent;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 500;
+}
+
+.primary-button:hover {
+  opacity: 0.85;
+}
+
+.ghost-button {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.ghost-button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ghost-button--danger:hover {
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.danger-button {
+  border: 1px solid transparent;
+  background: #dc2626;
+  color: #fff;
+  font-weight: 500;
+}
+
+.danger-button:hover {
+  opacity: 0.85;
+}
+
+.cats-dialog {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  padding: 0;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(85vh, 720px);
+  overflow: auto;
+}
+
+.cats-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.cats-dialog__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.cats-dialog__header h2 {
+  margin: 0;
+  font-size: 16px;
+  flex: 1 1 auto;
+}
+
+.cats-dialog__close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cats-dialog__close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.cats-dialog__body {
+  padding: 16px 20px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.cats-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.cats-dialog__impact {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.cat-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.cat-roster__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.cat-roster__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cat-roster__meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cat-roster__empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.cat-form__field {
+  display: grid;
+  gap: 4px;
+}
+
+.cat-form__field > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.cat-form__field small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cat-form__field input,
+.cat-form__field textarea {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  width: 100%;
+}
+
+.cat-form__field input[type="color"] {
+  padding: 2px;
+  height: 38px;
+  cursor: pointer;
+}
+
+.cat-form__field textarea {
+  resize: vertical;
+}
+
+.cat-form__errors {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .cat-form__errors {
+    color: #fca5a5;
+  }
+}
+
+/* The delete notice is intentionally loud: deleting a cat is the one
+ * irreversible action in the app, and it's the wrong tool for recording that a
+ * cat has passed away (that's `endedAt`). */
+.danger-notice {
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.07);
+  padding: 12px 14px;
+}
+
+.danger-notice h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.danger-notice p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.danger-notice p:last-child {
+  margin-bottom: 0;
 }
 
 /* ============================================================
@@ -670,6 +935,12 @@ main {
   .cats {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .cats-dialog__header,
+  .cats-dialog__body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -685,11 +956,38 @@ main {
     width: calc(100vw - 24px);
     max-width: 320px;
   }
+
+  /* Near-fullscreen dialog: the form is tall enough that a floating card
+   * wastes space, and the roster's Edit/Delete buttons need room to stay
+   * tappable. */
+  .cats-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    margin: 0;
+  }
+
+  .cats-dialog__actions button {
+    flex: 1 1 auto;
+  }
 }
 
 @media (max-width: 360px) {
   .cat-card dl {
     grid-template-columns: 1fr;
+  }
+
+  /* Name + metadata take the first row, the two buttons the second, rather
+   * than squeezing four items onto one line. */
+  .cat-roster__item {
+    flex-wrap: wrap;
+  }
+
+  .cat-roster__text {
+    flex-basis: 100%;
   }
 }
 

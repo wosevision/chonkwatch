@@ -1,4 +1,4 @@
-import type { CatId, RawWeightReading } from "./types.ts";
+import type { RawWeightReading } from "./types.ts";
 
 /**
  * Parser for the vendor's bulk database export — a CSV with one row per
@@ -16,8 +16,11 @@ import type { CatId, RawWeightReading } from "./types.ts";
  *     embedded commas wrapped in `"…"`, embedded `"` doubled). We can't
  *     use the simple comma split.
  *   - **Units:** weights are in pounds, not kilograms.
- *   - **Per-row pet identity:** every row carries `pet_id`, so we can
- *     pre-assign `catId` instead of leaning on the threshold heuristic.
+ *   - **Per-row pet identity:** every row carries `pet_id`, which we pass
+ *     through verbatim as `vendorPetId`. `classify.ts` matches it against the
+ *     registry's `vendorPetId` fields, giving exact attribution instead of the
+ *     weight heuristic. Resolution happens there, not here, so this parser
+ *     stays independent of the cat registry.
  *   - **Timestamps:** full UTC ISO with sub-second precision, e.g.
  *     `2025-06-01 22:08:38.394391+00` (space-separated, microsecond
  *     fractions, two-digit timezone offset).
@@ -46,17 +49,9 @@ export function isVendorExport(text: string): boolean {
   return /^pet_id\s*,/i.test(firstLine);
 }
 
-/**
- * @param petIdToCat `pet_id` → `CatId`, built from the cat registry's
- *   `vendorPetId` fields (see `vendorPetIdMap` in `cats.ts`). Rows whose
- *   `pet_id` isn't in the map still yield readings — just without a `catId`, so
- *   the weight heuristic in `classify.ts` decides. Dropping them instead would
- *   silently discard real data whenever a cat has no vendor ID recorded.
- */
 export function parseVendorCsv(
   text: string,
   source: string,
-  petIdToCat: Record<string, CatId> = {},
 ): RawWeightReading[] {
   const lines = text.split(/\r?\n/);
   if (lines.length === 0) return [];
@@ -80,9 +75,9 @@ export function parseVendorCsv(
   }
 
   const out: RawWeightReading[] = [];
-  const unknownPets = new Set<string>();
   let deletedCount = 0;
   let invalidCount = 0;
+  let missingPetIdCount = 0;
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
@@ -100,8 +95,7 @@ export function parseVendorCsv(
     }
 
     const petId = cols[colIndex.pet_id].trim();
-    const catId = petIdToCat[petId];
-    if (!catId) unknownPets.add(petId);
+    if (!petId) missingPetIdCount++;
 
     const lbs = Number.parseFloat(cols[colIndex.last_weight_reading]);
     if (!Number.isFinite(lbs) || lbs <= 0) {
@@ -118,7 +112,12 @@ export function parseVendorCsv(
       continue;
     }
 
-    out.push({ timestamp, weightKg, source, catId });
+    out.push({
+      timestamp,
+      weightKg,
+      source,
+      ...(petId ? { vendorPetId: petId } : {}),
+    });
   }
 
   if (deletedCount > 0) {
@@ -131,9 +130,9 @@ export function parseVendorCsv(
       `[vendor-parse] ${source}: skipped ${invalidCount} malformed row(s).`,
     );
   }
-  if (unknownPets.size > 0) {
+  if (missingPetIdCount > 0) {
     console.warn(
-      `[vendor-parse] ${source}: no cat has a matching vendor pet ID for ${[...unknownPets].join(", ")}; those readings fall back to the weight heuristic.`,
+      `[vendor-parse] ${source}: ${missingPetIdCount} row(s) had no pet_id; those readings fall back to the weight heuristic.`,
     );
   }
 

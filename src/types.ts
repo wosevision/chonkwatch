@@ -66,16 +66,17 @@ export interface CatStore {
 
 /** A weight reading parsed from a CSV row, before cat assignment.
  *
- * Most parsers leave `catId` undefined and lean on the weight heuristic in
- * `classify.ts`. The vendor bulk export (see `vendor-parse.ts`) carries a
- * per-row `pet_id`, so it pre-assigns `catId` for any cat with a matching
- * `vendorPetId` and `classifyAll` honors it instead of the heuristic.
- * User-set overrides still win over both. */
+ * Parsers deliberately don't resolve identity — they record the raw
+ * `vendorPetId` when the source has one (the vendor bulk export does; the
+ * monthly consumer exports don't) and leave the mapping to `classify.ts`. That
+ * keeps parsing independent of the cat registry, so editing a cat re-classifies
+ * in place instead of forcing a re-fetch and re-parse of every CSV. */
 export interface RawWeightReading {
   timestamp: Date;
   weightKg: number;
   source: string;
-  catId?: CatId;
+  /** `pet_id` verbatim from the vendor bulk export, if the row had one. */
+  vendorPetId?: string;
 }
 
 /** A weight reading attributed to a specific cat. */

@@ -1,4 +1,4 @@
-import { isTrackedAt } from "./cats.ts";
+import { isTrackedAt, vendorPetIdMap } from "./cats.ts";
 import {
   readingKey,
   type Cat,
@@ -60,8 +60,8 @@ function nearest(candidates: Cat[], weightKg: number): CatId {
  *   1. The dropped-reading set (readings orphaned by deleting a cat) — skipped.
  *   2. User-set override for this reading key (`ignore` drops the row). An
  *      override naming a cat that no longer exists is ignored.
- *   3. Pre-assigned `catId` on the raw reading (the vendor-export path, which
- *      knows the cat from `pet_id`), as long as that cat still exists.
+ *   3. The row's `vendorPetId` matched against the registry's `vendorPetId`
+ *      fields — exact attribution, no guessing.
  *   4. Nearest typical weight among the cats tracked at that timestamp.
  *
  * Readings that can't be attributed to anyone — which only happens when the
@@ -74,6 +74,7 @@ export function classifyAll(
   dropped: ReadonlySet<string> = new Set(),
 ): WeightReading[] {
   const ids = new Set(cats.map((c) => c.id));
+  const byPetId = vendorPetIdMap(cats);
   const out: WeightReading[] = [];
   for (const r of readings) {
     const key = readingKey(r);
@@ -86,8 +87,9 @@ export function classifyAll(
       continue;
     }
 
-    if (r.catId && ids.has(r.catId)) {
-      out.push({ ...r, catId: r.catId, key });
+    const fromPetId = r.vendorPetId ? byPetId[r.vendorPetId] : undefined;
+    if (fromPetId) {
+      out.push({ ...r, catId: fromPetId, key });
       continue;
     }
 

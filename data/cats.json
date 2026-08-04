@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "cats": [
+    {
+      "id": "jasper",
+      "name": "Jasper",
+      "color": "#0ea5e9",
+      "typicalWeightKg": 5.6,
+      "endedAt": "2026-06-30",
+      "vendorPetId": "PET-3fbe0a41-2fb6-4a49-bb55-0dbaffa2f0fc"
+    },
+    {
+      "id": "enzo",
+      "name": "Enzo",
+      "color": "#f59e0b",
+      "typicalWeightKg": 4.5,
+      "vendorPetId": "PET-6b7d31d1-d4cf-4f94-b698-6d01c87d486f"
+    }
+  ],
+  "droppedReadingKeys": []
+}

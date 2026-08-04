@@ -341,6 +341,13 @@ two things to keep in mind when adding UI:
   plugin config so pan + box-zoom work without modifier keys (touch has no
   Shift/Alt). The detection runs once at module load — fine for mobile
   Safari/Chrome/Firefox; hybrid devices effectively get the desktop config.
+- `style.css` has a global `[hidden] { display: none !important; }` reset near
+  the top. Don't drop it. Visibility all over the app is toggled through the
+  `hidden` attribute (`.drop-overlay`, `.override-popup`, the three manage-cats
+  dialog views, `#cats-empty`), and the user-agent `[hidden]` rule is a bare
+  attribute selector that *any* author-level `display` outranks. Without the
+  reset, giving such an element a `display` silently makes `el.hidden = true` a
+  no-op — which is how all three dialog views once rendered at the same time.
 - Two layout guardrails worth knowing about before you "simplify" them:
   - `main` and `.cats` use `grid-template-columns: minmax(0, 1fr)` rather
     than the implicit `1fr`. The default min-track-size is `auto`, which

@@ -1,4 +1,4 @@
-import { CAT_IDS, type CatId, type WeightReading } from "./types.ts";
+import type { CatId, WeightReading } from "./types.ts";
 
 /** Robust z-score threshold for "this looks bad" — chosen empirically; tune
  * if too many or too few points are flagged in practice. */
@@ -18,7 +18,9 @@ const MAD_TO_SD = 1.4826;
  */
 export function detectOutliers(readings: WeightReading[]): Set<string> {
   const flagged = new Set<string>();
-  for (const catId of CAT_IDS) {
+  // Cat ids come from the readings themselves rather than the registry: this
+  // only ever needs the cats actually present in the input.
+  for (const catId of new Set(readings.map((r) => r.catId))) {
     const forCat = readings.filter((r) => r.catId === catId);
     if (forCat.length < 4) continue; // not enough signal to call outliers
     const weights = forCat.map((r) => r.weightKg);

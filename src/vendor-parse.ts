@@ -25,11 +25,6 @@ import type { CatId, RawWeightReading } from "./types.ts";
  *     tombstones and must be skipped.
  */
 
-const PET_ID_TO_CAT: Record<string, CatId> = {
-  "PET-3fbe0a41-2fb6-4a49-bb55-0dbaffa2f0fc": "jasper",
-  "PET-6b7d31d1-d4cf-4f94-b698-6d01c87d486f": "enzo",
-};
-
 const LBS_TO_KG = 0.45359237;
 
 const REQUIRED_COLUMNS = [
@@ -51,9 +46,17 @@ export function isVendorExport(text: string): boolean {
   return /^pet_id\s*,/i.test(firstLine);
 }
 
+/**
+ * @param petIdToCat `pet_id` → `CatId`, built from the cat registry's
+ *   `vendorPetId` fields (see `vendorPetIdMap` in `cats.ts`). Rows whose
+ *   `pet_id` isn't in the map still yield readings — just without a `catId`, so
+ *   the weight heuristic in `classify.ts` decides. Dropping them instead would
+ *   silently discard real data whenever a cat has no vendor ID recorded.
+ */
 export function parseVendorCsv(
   text: string,
   source: string,
+  petIdToCat: Record<string, CatId> = {},
 ): RawWeightReading[] {
   const lines = text.split(/\r?\n/);
   if (lines.length === 0) return [];
@@ -97,11 +100,8 @@ export function parseVendorCsv(
     }
 
     const petId = cols[colIndex.pet_id].trim();
-    const catId = PET_ID_TO_CAT[petId];
-    if (!catId) {
-      unknownPets.add(petId);
-      continue;
-    }
+    const catId = petIdToCat[petId];
+    if (!catId) unknownPets.add(petId);
 
     const lbs = Number.parseFloat(cols[colIndex.last_weight_reading]);
     if (!Number.isFinite(lbs) || lbs <= 0) {
@@ -133,7 +133,7 @@ export function parseVendorCsv(
   }
   if (unknownPets.size > 0) {
     console.warn(
-      `[vendor-parse] ${source}: skipped readings for unknown pet_id(s): ${[...unknownPets].join(", ")}.`,
+      `[vendor-parse] ${source}: no cat has a matching vendor pet ID for ${[...unknownPets].join(", ")}; those readings fall back to the weight heuristic.`,
     );
   }
 

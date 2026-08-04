@@ -1,4 +1,5 @@
-import { CAT_IDS, CATS, type CatId, type WeightReading } from "./types.ts";
+import { hasEnded } from "./cats.ts";
+import type { Cat, CatId, WeightReading } from "./types.ts";
 
 export interface CatStats {
   latestKg: number | null;
@@ -6,26 +7,29 @@ export interface CatStats {
   firstAt: Date | null;
   avg30dKg: number | null;
   count: number;
-  /** True when this cat's history is closed — see `CATS[catId].endedAt`. */
+  /** True when this cat's history is closed — i.e. they have an `endedAt`. */
   ended: boolean;
 }
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Per-cat summary numbers. Every cat in `cats` gets an entry, including ones
+ * with no readings in the given window, so the cards render consistently. */
 export function computeStats(
   readings: WeightReading[],
+  cats: Cat[],
 ): Record<CatId, CatStats> {
-  const result = {} as Record<CatId, CatStats>;
+  const result: Record<CatId, CatStats> = {};
   const now = Date.now();
 
-  for (const catId of CAT_IDS) {
-    const ended = CATS[catId].endedAt != null;
+  for (const cat of cats) {
+    const ended = hasEnded(cat);
     const forCat = readings
-      .filter((r) => r.catId === catId)
+      .filter((r) => r.catId === cat.id)
       .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
     if (forCat.length === 0) {
-      result[catId] = {
+      result[cat.id] = {
         latestKg: null,
         latestAt: null,
         firstAt: null,
@@ -50,7 +54,7 @@ export function computeStats(
         ? recent.reduce((sum, r) => sum + r.weightKg, 0) / recent.length
         : null;
 
-    result[catId] = {
+    result[cat.id] = {
       latestKg: latest.weightKg,
       latestAt: latest.timestamp,
       firstAt: forCat[0].timestamp,

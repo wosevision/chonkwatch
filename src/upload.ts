@@ -1,5 +1,5 @@
 import { uploadAndParse } from "./data-loader.ts";
-import type { RawWeightReading } from "./types.ts";
+import type { Cat, RawWeightReading } from "./types.ts";
 
 export interface UploadOutcome {
   filename: string;
@@ -19,16 +19,20 @@ type UploadHandler = (outcomes: UploadOutcome[], errors: string[]) => void;
  * starts with the `hidden` attribute set (FOUC guard) and we toggle that
  * attribute rather than a class so the overlay stays hidden through the
  * brief window before CSS finishes loading.
+ *
+ * `getCats` is read at drop time rather than captured up front, since the cat
+ * registry is editable while the page is open and parsing depends on it.
  */
 export function setupUpload(
   fileInput: HTMLInputElement,
   dropZone: HTMLElement,
   overlay: HTMLElement,
+  getCats: () => Cat[],
   onUpload: UploadHandler,
 ): void {
   fileInput.addEventListener("change", async () => {
     const files = fileInput.files ? Array.from(fileInput.files) : [];
-    await handleFiles(files, onUpload);
+    await handleFiles(files, getCats(), onUpload);
     fileInput.value = "";
   });
 
@@ -54,12 +58,13 @@ export function setupUpload(
     dragDepth = 0;
     overlay.hidden = true;
     const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
-    await handleFiles(files, onUpload);
+    await handleFiles(files, getCats(), onUpload);
   });
 }
 
 async function handleFiles(
   files: File[],
+  cats: Cat[],
   onUpload: UploadHandler,
 ): Promise<void> {
   const csvs = files.filter(
@@ -71,7 +76,7 @@ async function handleFiles(
   const errors: string[] = [];
   for (const file of csvs) {
     try {
-      const { readings, result } = await uploadAndParse(file);
+      const { readings, result } = await uploadAndParse(file, cats);
       outcomes.push({
         filename: result.name,
         replaced: result.replaced,

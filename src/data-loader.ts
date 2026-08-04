@@ -1,8 +1,10 @@
 import { listFiles, uploadFile, type UploadResult } from "./api.ts";
+import { vendorPetIdMap } from "./cats.ts";
 import { classifyAll } from "./classify.ts";
 import { exportDateFromFilename, parseCsv } from "./parse.ts";
 import { isVendorExport, parseVendorCsv } from "./vendor-parse.ts";
 import type {
+  Cat,
   OverridesMap,
   RawWeightReading,
   WeightReading,
@@ -26,11 +28,12 @@ const bundledCsvs = import.meta.glob("/data/poobox_activity_*.csv", {
   eager: true,
 }) as Record<string, string>;
 
-export function loadBundledRaw(): RawWeightReading[] {
+export function loadBundledRaw(cats: Cat[]): RawWeightReading[] {
+  const petIds = vendorPetIdMap(cats);
   const all: RawWeightReading[] = [];
   for (const [path, text] of Object.entries(bundledCsvs)) {
     const filename = path.split("/").pop() ?? path;
-    all.push(...parseOne(text, filename));
+    all.push(...parseOne(text, filename, petIds));
   }
   return all;
 }
@@ -41,11 +44,14 @@ export function loadBundledRaw(): RawWeightReading[] {
  * dedupe pass handles it). In prod they come from Netlify Blobs. The
  * vendor bulk export only flows through this path (it's not in the bundle).
  */
-export async function loadPersistedRaw(): Promise<RawWeightReading[]> {
+export async function loadPersistedRaw(
+  cats: Cat[],
+): Promise<RawWeightReading[]> {
+  const petIds = vendorPetIdMap(cats);
   const files = await listFiles();
   const all: RawWeightReading[] = [];
   for (const file of files) {
-    all.push(...parseOne(file.content, file.name));
+    all.push(...parseOne(file.content, file.name, petIds));
   }
   return all;
 }
@@ -57,10 +63,14 @@ export async function loadPersistedRaw(): Promise<RawWeightReading[]> {
  */
 export async function uploadAndParse(
   file: File,
+  cats: Cat[],
 ): Promise<{ readings: RawWeightReading[]; result: UploadResult }> {
   const text = await file.text();
   const result = await uploadFile(file.name, text);
-  return { readings: parseOne(text, result.name), result };
+  return {
+    readings: parseOne(text, result.name, vendorPetIdMap(cats)),
+    result,
+  };
 }
 
 /**
@@ -68,9 +78,13 @@ export async function uploadAndParse(
  * bulk export parser and the simple monthly-export parser, so the rest of
  * the loader doesn't need to care which format a given file uses.
  */
-function parseOne(text: string, filename: string): RawWeightReading[] {
+function parseOne(
+  text: string,
+  filename: string,
+  petIdToCat: Record<string, string>,
+): RawWeightReading[] {
   if (isVendorExport(text)) {
-    return parseVendorCsv(text, filename);
+    return parseVendorCsv(text, filename, petIdToCat);
   }
   const exportDate = exportDateFromFilename(filename) ?? new Date();
   if (!exportDateFromFilename(filename)) {
@@ -88,9 +102,11 @@ function parseOne(text: string, filename: string): RawWeightReading[] {
  */
 export function buildDataset(
   raws: RawWeightReading[],
+  cats: Cat[],
   overrides: OverridesMap,
+  droppedReadingKeys: ReadonlySet<string> = new Set(),
 ): WeightReading[] {
-  const classified = classifyAll(raws, overrides);
+  const classified = classifyAll(raws, cats, overrides, droppedReadingKeys);
   const seen = new Set<string>();
   const out: WeightReading[] = [];
   for (const r of classified) {

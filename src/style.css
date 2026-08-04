@@ -604,6 +604,9 @@ main {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+  /* The title's own bottom margin is absorbed inside the flex line, since the
+   * taller button sets the row height. Space the header itself instead. */
+  margin-bottom: 1rem;
 }
 
 .cats-empty {

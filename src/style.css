@@ -76,6 +76,11 @@ body {
   max-width: 1100px;
   margin: 0 auto;
   width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .site-header h1 {
@@ -858,6 +863,151 @@ main {
   margin-bottom: 0;
 }
 
+/* The sign-in gate. Opaque rather than translucent — there's no reason to
+ * tease the page underneath, and a solid backdrop means a mis-sized card can't
+ * leave a gap onto the app. `position: fixed` keeps it covering the viewport
+ * regardless of how far down the page was scrolled when a session expired. */
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  overflow-y: auto;
+}
+
+.auth-card {
+  width: min(380px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px;
+  display: grid;
+  gap: 14px;
+}
+
+.auth-card__title {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+}
+
+.auth-card__lede {
+  margin: -8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.auth-card__error,
+.auth-card__notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-card__error {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  color: #b91c1c;
+}
+
+.auth-card__notice {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  .auth-card__error {
+    color: #fca5a5;
+  }
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form__field {
+  display: grid;
+  gap: 4px;
+}
+
+.auth-form__field > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.auth-form__field small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.auth-form__field input {
+  font: inherit;
+  font-size: 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  width: 100%;
+}
+
+.auth-form__submit {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+/* A button, not an anchor: these switch views in place rather than navigating,
+ * so there's no href to give it. Styled back down to look like the link it
+ * reads as. */
+.auth-form__link {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  justify-self: center;
+}
+
+.auth-form__link:hover {
+  color: var(--text);
+}
+
+.auth-form.is-busy {
+  opacity: 0.6;
+}
+
+.site-header__account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.site-header__user {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ============================================================
  * Responsive breakpoints
  *
@@ -880,6 +1030,17 @@ main {
 
   .site-header h1 {
     font-size: 22px;
+  }
+
+  /* The account line drops below the title rather than competing with it for
+   * width, since an email address is easily wider than "Chonkwatch". */
+  .site-header__account {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .site-header__user {
+    max-width: none;
   }
 
   /* Match the header's 16px horizontal inset so the title and the cards line
@@ -947,6 +1108,19 @@ main {
 @media (max-width: 480px) {
   .chart-wrap {
     height: 320px;
+  }
+
+  /* Let the sign-in card use the full width and sit near the top, so the
+   * on-screen keyboard doesn't shove a vertically-centered card off-screen. */
+  .auth-gate {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .auth-card {
+    width: 100%;
+    padding: 20px;
+    margin-top: 24px;
   }
 
   .visits-canvas-wrap {

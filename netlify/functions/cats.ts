@@ -1,6 +1,8 @@
 import { getStore } from "@netlify/blobs";
 import type { Context } from "@netlify/functions";
 
+import { requireUser } from "../shared/require-user.ts";
+
 /**
  * Production store for the user-managed cat registry: Netlify Blobs.
  *
@@ -12,12 +14,19 @@ import type { Context } from "@netlify/functions";
  * A missing document returns 404 rather than an empty registry: the client
  * distinguishes "never seeded" (seed the defaults) from "seeded and empty"
  * (the user deleted every cat, which must not be silently undone).
+ *
+ * Requires a Netlify Identity session, like `/api/csvs`. Without the guard an
+ * anonymous `PUT` could rewrite the registry outright, and since deletions here
+ * also carry `droppedReadingKeys`, that would take readings down with it.
  */
 
 const STORE_NAME = "chonkwatch-cats";
 const KEY = "cats.json";
 
 export default async (req: Request, _context: Context): Promise<Response> => {
+  const unauthorized = await requireUser();
+  if (unauthorized) return unauthorized;
+
   const store = getStore(STORE_NAME);
 
   if (req.method === "GET") {
@@ -27,7 +36,10 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     }
     return new Response(raw, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "private, no-store",
+      },
     });
   }
 
@@ -80,6 +92,9 @@ function validateCatStore(body: unknown): string | null {
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "private, no-store",
+    },
   });
 }

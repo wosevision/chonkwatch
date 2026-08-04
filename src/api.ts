@@ -7,6 +7,11 @@ import type { CatStore } from "./types.ts";
  * Functions in production (backed by Netlify Blobs). The response shapes are
  * identical either way, so callers don't care which backend is on the other
  * side.
+ *
+ * In production both endpoints require a Netlify Identity session. The browser
+ * sends it automatically — it rides along in the `nf_jwt` cookie on these
+ * same-origin requests — so there's no token to attach here. What does need
+ * handling is a 401, which means the session lapsed while the page was open.
  */
 
 export interface PersistedFile {
@@ -22,10 +27,34 @@ export interface UploadResult {
 const ENDPOINT = "/api/csvs";
 const CATS_ENDPOINT = "/api/cats";
 
+let unauthorizedHandler: (() => void) | null = null;
+
+/**
+ * Register what to do when the server stops accepting the session, typically
+ * putting the sign-in gate back up. Inverted like this so this module stays
+ * free of DOM and of any import back into the auth UI.
+ */
+export function onUnauthorized(handler: () => void): void {
+  unauthorizedHandler = handler;
+}
+
+/**
+ * A 401 is the only response the caller can't do anything useful with: the data
+ * isn't missing or malformed, the session is simply gone. Notify, then throw so
+ * the calling path unwinds instead of rendering half a page.
+ */
+function checkAuthorized(res: Response, label: string): void {
+  if (res.status !== 401) return;
+  unauthorizedHandler?.();
+  throw new Error(`${label} failed: not signed in`);
+}
+
 export async function listFiles(): Promise<PersistedFile[]> {
   const res = await fetch(ENDPOINT, {
     headers: { Accept: "application/json" },
+    credentials: "same-origin",
   });
+  checkAuthorized(res, `GET ${ENDPOINT}`);
   if (!res.ok) {
     throw new Error(`GET ${ENDPOINT} failed: ${res.status}`);
   }
@@ -44,7 +73,9 @@ export async function uploadFile(
       Accept: "application/json",
     },
     body: JSON.stringify({ name, content }),
+    credentials: "same-origin",
   });
+  checkAuthorized(res, `POST ${ENDPOINT}`);
   if (!res.ok) {
     let detail = "";
     try {
@@ -66,7 +97,9 @@ export async function uploadFile(
 export async function loadCatStore(): Promise<CatStore | null> {
   const res = await fetch(CATS_ENDPOINT, {
     headers: { Accept: "application/json" },
+    credentials: "same-origin",
   });
+  checkAuthorized(res, `GET ${CATS_ENDPOINT}`);
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`GET ${CATS_ENDPOINT} failed: ${res.status}`);
@@ -84,7 +117,9 @@ export async function saveCatStore(store: CatStore): Promise<void> {
       Accept: "application/json",
     },
     body: JSON.stringify(store),
+    credentials: "same-origin",
   });
+  checkAuthorized(res, `PUT ${CATS_ENDPOINT}`);
   if (!res.ok) {
     let detail = "";
     try {

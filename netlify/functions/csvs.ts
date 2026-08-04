@@ -1,6 +1,8 @@
 import { getStore } from "@netlify/blobs";
 import type { Context } from "@netlify/functions";
 
+import { requireUser } from "../shared/require-user.ts";
+
 /**
  * Production CSV store: Netlify Blobs.
  *
@@ -9,12 +11,19 @@ import type { Context } from "@netlify/functions";
  * land in a Netlify Blobs store instead. The bundled CSVs in `data/` still
  * load via Vite's glob import at build time — bundled and persisted are
  * merged on the client and deduped by `(timestamp, weight, cat)`.
+ *
+ * Requires a Netlify Identity session. This endpoint hands back every reading
+ * the app has and accepts writes, so it's the door that matters — the sign-in
+ * screen in the browser is only a curtain in front of it.
  */
 
 const STORE_NAME = "chonkwatch-csvs";
 const SAFE_NAME_RE = /^[\w.\-]+\.csv$/i;
 
 export default async (req: Request, _context: Context): Promise<Response> => {
+  const unauthorized = await requireUser();
+  if (unauthorized) return unauthorized;
+
   const store = getStore(STORE_NAME);
 
   if (req.method === "GET") {
@@ -64,6 +73,9 @@ export const config = {
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "private, no-store",
+    },
   });
 }

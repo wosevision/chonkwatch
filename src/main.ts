@@ -1,6 +1,7 @@
 import "./style.css";
 
-import { loadCatStore, saveCatStore } from "./api.ts";
+import { loadCatStore, onUnauthorized, saveCatStore } from "./api.ts";
+import { lockScreen, openAuthGate } from "./auth-ui.ts";
 import { WeightChart, type RawClickInfo } from "./chart.ts";
 import { catName, hasEnded, pruneOverrides, seedStore } from "./cats.ts";
 import { setupCatsDialog } from "./cats-ui.ts";
@@ -80,9 +81,7 @@ const catsDialog = setupCatsDialog({
   onChange: applyCatStore,
 });
 
-renderAll();
-
-void hydrate();
+void boot();
 
 manageCats.addEventListener("click", () => catsDialog.open());
 
@@ -136,6 +135,20 @@ setupUpload(fileInput, dropZone, dropOverlay, (outcomes, errors) => {
 });
 
 setupOverridePopup();
+
+/**
+ * Wait for a session before drawing anything or asking the API for it. In local
+ * dev there's no Identity service, so the gate resolves immediately and this is
+ * just the old startup path (see `auth.ts`).
+ */
+async function boot(): Promise<void> {
+  onUnauthorized(() =>
+    lockScreen("Your session expired. Sign in again to pick up where you were."),
+  );
+  await openAuthGate();
+  renderAll();
+  await hydrate();
+}
 
 /**
  * Two-stage startup. The cat registry comes first because classification

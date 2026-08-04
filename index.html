@@ -5,16 +5,122 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    
     <title>Chonkwatch — Jasper &amp; Enzo</title>
   </head>
   <body>
+    <!-- Starts visible so a slow module load can't flash the app at a stranger.
+         `auth-ui.ts` takes it down once the session resolves (immediately, in
+         local dev, where there's no Identity service to authenticate against). -->
+    <div id="auth-gate" class="auth-gate">
+      <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <h1 id="auth-title" class="auth-card__title">Chonkwatch</h1>
+        <p id="auth-lede" class="auth-card__lede">Sign in to see Jasper &amp; Enzo.</p>
+
+        <p id="auth-error" class="auth-card__error" role="alert" hidden></p>
+        <p id="auth-notice" class="auth-card__notice" role="status" hidden></p>
+
+        <!-- View 1: the ordinary sign-in form. There's no signup form on
+             purpose — the site is invite-only. -->
+        <form id="auth-view-signin" class="auth-form">
+          <label class="auth-form__field">
+            <span>Email</span>
+            <input
+              type="email"
+              id="auth-email"
+              autocomplete="username"
+              required
+            />
+          </label>
+          <label class="auth-form__field">
+            <span>Password</span>
+            <input
+              type="password"
+              id="auth-password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <button type="submit" class="primary-button auth-form__submit">
+            Sign in
+          </button>
+          <button type="button" id="auth-forgot-link" class="auth-form__link">
+            Forgot your password?
+          </button>
+        </form>
+
+        <!-- View 2: redeeming an emailed invite. -->
+        <form id="auth-view-invite" class="auth-form" hidden>
+          <label class="auth-form__field">
+            <span>Choose a password</span>
+            <input
+              type="password"
+              id="auth-invite-password"
+              autocomplete="new-password"
+              required
+              minlength="8"
+            />
+            <small>At least 8 characters.</small>
+          </label>
+          <button type="submit" class="primary-button auth-form__submit">
+            Set password &amp; sign in
+          </button>
+        </form>
+
+        <!-- View 3: setting a new password after a recovery link. -->
+        <form id="auth-view-recovery" class="auth-form" hidden>
+          <label class="auth-form__field">
+            <span>New password</span>
+            <input
+              type="password"
+              id="auth-recovery-password"
+              autocomplete="new-password"
+              required
+              minlength="8"
+            />
+            <small>At least 8 characters.</small>
+          </label>
+          <button type="submit" class="primary-button auth-form__submit">
+            Update password
+          </button>
+        </form>
+
+        <!-- View 4: requesting a recovery email. -->
+        <form id="auth-view-forgot" class="auth-form" hidden>
+          <label class="auth-form__field">
+            <span>Email</span>
+            <input
+              type="email"
+              id="auth-forgot-email"
+              autocomplete="username"
+              required
+            />
+          </label>
+          <button type="submit" class="primary-button auth-form__submit">
+            Send reset link
+          </button>
+          <button type="button" id="auth-back-link" class="auth-form__link">
+            Back to sign in
+          </button>
+        </form>
+      </div>
+    </div>
+
     <div class="drop-overlay" aria-hidden="true" hidden>
       <div class="drop-overlay__inner">Drop CSV exports to add them</div>
     </div>
 
     <header class="site-header">
-      <h1>Chonkwatch</h1>
-      <p class="subtitle">Jasper &amp; Enzo, weighed by litter box</p>
+      <div class="site-header__titles">
+        <h1>Chonkwatch</h1>
+        <p class="subtitle">Jasper &amp; Enzo, weighed by litter box</p>
+      </div>
+      <div class="site-header__account" id="account" hidden>
+        <span class="site-header__user" id="account-email"></span>
+        <button type="button" id="sign-out" class="ghost-button">
+          Sign out
+        </button>
+      </div>
     </header>
 
     <main>

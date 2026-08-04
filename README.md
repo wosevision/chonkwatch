@@ -38,6 +38,8 @@ Requires Node 20.19+ or 22.12+ (Vite 8).
 - **Auto dark mode** following the OS `prefers-color-scheme`.
 - **CSV upload** via button or page-wide drag-and-drop, persisted
   server-side and deduped against bundled data.
+- **Invite-only access** in production via Netlify Identity — a sign-in gate in
+  front of the UI, and a session check on both API endpoints.
 
 ## How data flows in
 
@@ -106,6 +108,42 @@ Where the registry lives:
 - In dev: `data/cats.json`, written by the Vite dev API. Safe to commit.
 - In production: a Netlify Blobs store named `chonkwatch-cats`.
 
+## Access control
+
+The deployed site is invite-only, using
+[Netlify Identity](https://docs.netlify.com/manage/security/secure-access-to-sites/identity/get-started/).
+There's no signup form: accounts are created by inviting an email address from
+**Project configuration → Identity → Invite users** in the Netlify dashboard.
+The invitee gets an email, follows the link back to the site, picks a password,
+and is signed in.
+
+Two layers, and the second is the one that matters:
+
+1. The **sign-in gate** (`src/auth-ui.ts`) covers the page until there's a
+   session. This is convenience — it's browser code, so it can be bypassed by
+   anyone who cares to.
+2. The **API guard** (`netlify/shared/require-user.ts`) makes `/api/csvs` and
+   `/api/cats` return 401 without a valid session. Since every reading reaches
+   the browser through `/api/csvs`, this is what actually keeps the data
+   private. It validates the caller's token server-side and fails closed.
+
+If a session expires while the page is open, the next API call gets a 401 and
+the gate comes back up with a note.
+
+**Local dev is deliberately unauthenticated.** `npm run dev` is plain Vite with
+no Identity service behind it, so the gate switches itself off and the dev API
+stays open on localhost. To exercise the real flow locally, run `netlify dev`
+with `VITE_FORCE_AUTH=true`. Note that `npm run preview` serves a production
+build, so it shows the gate but can't get past it without a Netlify runtime.
+
+One thing to watch: files matching `data/poobox_activity_*.csv` are inlined into
+the JS bundle at build time, and **static assets are served without
+authentication** — no client-side login can protect them. That's fine today,
+because the only file in `data/` is the dashed vendor export, which is
+deliberately excluded from the bundle and loaded through `/api/csvs` instead. If
+you add monthly CSVs back into `data/` and want them private too, drop the glob
+in `src/data-loader.ts` and let everything load through the API.
+
 ## Deploying to Netlify
 
 The repo includes a `netlify.toml` and two serverless functions under
@@ -117,6 +155,9 @@ The repo includes a `netlify.toml` and two serverless functions under
    `netlify.toml`.
 3. Netlify Blobs is enabled per-site automatically — no extra configuration
    needed.
+4. Enable **Identity** in the project configuration, set registration to
+   **Invite only**, and invite yourself. Identity needs HTTPS, which Netlify
+   provisions automatically for both `*.netlify.app` and custom domains.
 
 To test the production-shaped backend locally, install the Netlify CLI and
 run:
@@ -150,6 +191,10 @@ That serves the Netlify Function and Blobs emulator alongside Vite. Plain
 - [Netlify Functions](https://docs.netlify.com/functions/overview/) +
   [Netlify Blobs](https://docs.netlify.com/blobs/overview/) — production
   persistence backend for both the CSVs and the cat registry.
+- [`@netlify/identity`](https://www.npmjs.com/package/@netlify/identity) —
+  invite-only auth, used both in the browser for the sign-in gate and inside
+  the functions to verify the session. (This is the headless library Netlify
+  recommends for new projects, not the older `netlify-identity-widget`.)
 
 See [`AGENTS.md`](./AGENTS.md) for a tour of the source layout, the
 dev/prod architecture split, and the small pile of CSV-format gotchas.

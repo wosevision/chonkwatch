@@ -8,7 +8,10 @@ project evolves.
 A small web app that visualizes Jasper's and Enzo's weight over time, using
 CSV exports from a "smart" litter box's proprietary app. Designed for a
 single user (the owner) viewing locally or on a Netlify-hosted instance.
-Keep it simple — no auth, no telemetry, no analytics.
+Keep it simple — no telemetry, no analytics. The deployed site is invite-only
+behind Netlify Identity (see "Access control"), but that's a lock on the front
+door, not a multi-user system: there are no roles, no per-user data, and no
+sharing.
 
 ## The cats
 
@@ -118,6 +121,7 @@ by two different backends:
 | `GET /api/cats`      | Vite plugin reads `data/cats.json`             | Netlify Function reads Blobs      |
 | `PUT /api/cats`      | Vite plugin writes `data/cats.json`            | Netlify Function writes to Blobs  |
 | Per-reading overrides| `localStorage`                                 | `localStorage`                    |
+| Access control       | None — gate disabled, dev API open             | Netlify Identity, invite-only     |
 
 Implications worth keeping in mind:
 
@@ -142,6 +146,65 @@ Implications worth keeping in mind:
   (`poobox_activity-export.csv`, dash) is excluded so its ~1.7 MB payload
   doesn't get inlined into the JS bundle. It still loads via `/api/csvs`
   on the persisted-fetch path.
+
+## Access control
+
+The deployed site is invite-only via Netlify Identity. Registration is disabled
+in the Netlify dashboard, so there is deliberately **no signup form** — accounts
+come from inviting an email address, and the invitee arrives back on the site
+with an `#invite_token=…` hash to exchange for a password.
+
+The library is [`@netlify/identity`](https://www.npmjs.com/package/@netlify/identity),
+not the older `netlify-identity-widget`. That's Netlify's current
+recommendation, and more to the point it's the only one of the two that runs
+server-side, which is where the enforcement has to live. (Netlify announced
+Identity's deprecation in 2025 and reversed it in Feb 2026; it's supported.
+Docs from that window are unreliable.)
+
+### Two layers, only one of which is real
+
+1. `src/auth-ui.ts` puts a gate over the page until there's a session. This is
+   **convenience only.** It's browser code and can be bypassed trivially.
+2. `netlify/shared/require-user.ts` makes `/api/csvs` and `/api/cats` return 401
+   without a valid session. **This is the actual access control.**
+
+Layer 2 is load-bearing because every reading reaches the browser through
+`/api/csvs`. Without it, `curl https://site/api/csvs` returns the whole dataset
+and `PUT /api/cats` lets an anonymous caller rewrite the registry — which, via
+`droppedReadingKeys`, can destroy readings. If you find yourself changing the
+functions, the guard stays.
+
+`getUser()` fails closed: server-side it validates the caller's `nf_jwt` against
+Identity's `/user` endpoint and returns `null` on a forged cookie, an expired
+token, or an unreachable Identity service. It never throws. The browser sends
+that cookie automatically on same-origin requests, so `src/api.ts` attaches no
+tokens by hand — it only has to notice a 401 and call back into the UI
+(`onUnauthorized`) to re-raise the gate. That callback is registered by `main.ts`
+rather than imported by `api.ts`, which keeps `api.ts` DOM-free.
+
+### Static assets are not protected, and can't be
+
+Anything Vite inlines into the JS bundle is served as a public static asset. No
+client-side login can gate that. Today it doesn't matter — the bundling glob
+only matches `data/poobox_activity_*.csv` and the sole file in `data/` is the
+dashed vendor export, which is excluded and arrives through the authenticated
+`/api/csvs`. **If monthly CSVs are ever added back to `data/`, their contents
+become publicly readable**, and the fix is to drop the glob in
+`src/data-loader.ts` so everything loads through the API. Flag this to the user
+rather than quietly changing the loading strategy.
+
+### Local dev runs open, on purpose
+
+`npm run dev` is plain Vite: there's no `/.netlify/identity` to authenticate
+against, so a gate would just lock the owner out of their own machine. The
+library is no help in detecting this (in a browser it always claims Identity is
+configured at `${location.origin}/.netlify/identity`), so `AUTH_ENABLED` in
+`src/auth.ts` keys off `import.meta.env.PROD` instead, with `VITE_FORCE_AUTH`
+as an override for testing under `netlify dev`. Consequences:
+
+- The dev `/api/*` handlers in `vite.config.ts` have no auth and don't need any.
+- `npm run preview` is a PROD build, so it shows the gate and cannot get past it
+  without a Netlify runtime behind it. That's expected, not a bug.
 
 ## Repo layout
 
@@ -172,6 +235,10 @@ Implications worth keeping in mind:
     Netlify Functions v2 (default-export request handler + `config.path`).
   - `functions/cats.ts` — production `/api/cats` handler, same shape, backed by
     the `chonkwatch-cats` Blobs store under the key `cats.json`.
+  - `shared/require-user.ts` — the Identity guard both functions call first.
+    Lives outside `functions/` on purpose: every file at the top level of the
+    functions directory is deployed as its own endpoint, so a helper placed
+    there would become a public URL. esbuild follows the relative import fine.
 - `netlify.toml` — Netlify build / dev / redirect config. The SPA catch-all
   redirect must come *after* any explicit function paths (each v2 function's
   own `config.path` already wins, but be careful when adding more rewrites).
@@ -179,7 +246,8 @@ Implications worth keeping in mind:
   that backs `/api/csvs` and `/api/cats` against the local filesystem.
 - `src/`
   - `main.ts` — entrypoint; orchestrates loading, filters, charts, upload,
-    overrides, the popup, and the cat cards. Holds the small amount of UI state
+    overrides, the popup, and the cat cards. `boot()` waits on the sign-in gate
+    before rendering or fetching anything. Holds the small amount of UI state
     in module-local variables. The cat cards and the override popup's buttons
     are both generated from the registry, so neither can be hardcoded in
     `index.html`.
@@ -217,7 +285,15 @@ Implications worth keeping in mind:
     helpers + classify-and-dedupe (`buildDataset`). Sniffs each file's
     header to dispatch between `parse.ts` and `vendor-parse.ts`.
   - `api.ts` — frontend client for `/api/csvs` and `/api/cats`. The only place
-    the rest of the app talks HTTP.
+    the rest of the app talks HTTP. Sends the session cookie implicitly and
+    turns a 401 into the `onUnauthorized` callback.
+  - `auth.ts` — Netlify Identity session adapter: `AUTH_ENABLED`, the
+    sign-in / invite / recovery calls, and error-message normalization. Pure of
+    DOM, like `cats.ts`.
+  - `auth-ui.ts` — the sign-in gate: the four views (sign in, accept invite, set
+    a new password, request a reset), the account bar's sign-out button, and the
+    `inert` handling that takes the app behind the overlay out of the tab order.
+    The DOM half, like `cats-ui.ts`.
   - `overrides.ts` — `localStorage`-backed override map under
     `chonkwatch:overrides:v1`.
   - `upload.ts` — file-input + page-wide drag-and-drop UI glue. Posts to
@@ -234,7 +310,9 @@ Implications worth keeping in mind:
     their final reading rather than `now`.
   - `style.css` — all styles. Plain CSS, no preprocessor; auto dark mode
     via `prefers-color-scheme`.
-- `index.html` — single page; references `/src/main.ts` as a module.
+- `index.html` — single page; references `/src/main.ts` as a module. Also holds
+  the sign-in gate markup, which ships *visible* so that a slow or failed module
+  load errs towards showing nothing rather than flashing the app.
 - `package.json` — npm metadata. Vite is the dev server / bundler; Chart.js
   is the visualization library; `chartjs-adapter-date-fns` provides the
   time-axis date adapter; `chartjs-plugin-zoom` enables drag/wheel zoom and
@@ -331,8 +409,10 @@ The app is meant to be usable from a phone as well as a desktop browser, so
 two things to keep in mind when adding UI:
 
 - `src/style.css` declares responsive breakpoints in a single block at the
-  bottom — 720 px (stack the controls bar), 480 px (smaller chart heights,
-  full-width override popup, near-fullscreen manage-cats dialog), 360 px
+  bottom — 720 px (stack the controls bar, drop the account line below the
+  title), 480 px (smaller chart heights, full-width override popup,
+  near-fullscreen manage-cats dialog, top-aligned sign-in card so the on-screen
+  keyboard doesn't push it off), 360 px
   (single-column cat-card stats, wrapped roster rows). New components should fit
   into that ladder rather than introducing one-off `@media` blocks scattered
   through the file.
@@ -344,7 +424,8 @@ two things to keep in mind when adding UI:
 - `style.css` has a global `[hidden] { display: none !important; }` reset near
   the top. Don't drop it. Visibility all over the app is toggled through the
   `hidden` attribute (`.drop-overlay`, `.override-popup`, the three manage-cats
-  dialog views, `#cats-empty`), and the user-agent `[hidden]` rule is a bare
+  dialog views, `#cats-empty`, `#auth-gate` and its four views), and the
+  user-agent `[hidden]` rule is a bare
   attribute selector that *any* author-level `display` outranks. Without the
   reset, giving such an element a `display` silently makes `el.hidden = true` a
   no-op — which is how all three dialog views once rendered at the same time.
@@ -412,6 +493,9 @@ Ask the user before:
 - Materially changing the cat-assignment heuristic. Per-reading overrides
   are the supported escape hatch; nearest-typical-weight should stay simple
   unless the data clearly demands more.
+- Removing or weakening the Identity guard on either function, or bundling
+  anything sensitive into the static build. Both are silent data exposure — the
+  app looks identical either way.
 - Softening the delete confirmation, or making deletion do anything other than
   what it does now. The notice about `endedAt` is a deliberate product decision,
   not boilerplate.

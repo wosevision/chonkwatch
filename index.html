@@ -101,59 +101,19 @@
         </div>
       </section>
 
-      <section class="cats">
-        <article class="cat-card" data-cat="jasper">
-          <header>
-            <span class="swatch" aria-hidden="true"></span>
-            <h2>Jasper</h2>
-            <button
-              type="button"
-              class="cat-toggle"
-              aria-pressed="false"
-              aria-label="Hide Jasper"
-            >
-              Hide
-            </button>
-          </header>
-          <p class="cat-card__note" id="jasper-note" hidden></p>
-          <dl>
-            <div>
-              <dt id="jasper-latest-label">Latest</dt>
-              <dd id="jasper-latest">—</dd>
-            </div>
-            <div>
-              <dt id="jasper-avg-label">30-day avg</dt>
-              <dd id="jasper-avg">—</dd>
-            </div>
-            <div><dt>Readings</dt><dd id="jasper-count">—</dd></div>
-          </dl>
-        </article>
-        <article class="cat-card" data-cat="enzo">
-          <header>
-            <span class="swatch" aria-hidden="true"></span>
-            <h2>Enzo</h2>
-            <button
-              type="button"
-              class="cat-toggle"
-              aria-pressed="false"
-              aria-label="Hide Enzo"
-            >
-              Hide
-            </button>
-          </header>
-          <p class="cat-card__note" id="enzo-note" hidden></p>
-          <dl>
-            <div>
-              <dt id="enzo-latest-label">Latest</dt>
-              <dd id="enzo-latest">—</dd>
-            </div>
-            <div>
-              <dt id="enzo-avg-label">30-day avg</dt>
-              <dd id="enzo-avg">—</dd>
-            </div>
-            <div><dt>Readings</dt><dd id="enzo-count">—</dd></div>
-          </dl>
-        </article>
+      <section class="cats-section" aria-label="Cats">
+        <div class="cats-header">
+          <h2 class="section-title">Cats</h2>
+          <button type="button" id="manage-cats" class="ghost-button">
+            Manage cats
+          </button>
+        </div>
+        <!-- Cards are rendered from the cat registry by `main.ts`. -->
+        <div class="cats" id="cat-cards"></div>
+        <p class="cats-empty" id="cats-empty" hidden>
+          No cats yet. Use <strong>Manage cats</strong> to add one — readings
+          can't be attributed until at least one cat exists.
+        </p>
       </section>
 
       <section class="sources">
@@ -181,15 +141,133 @@
         </button>
       </header>
       <p id="override-meta" class="override-popup__meta"></p>
-      <div class="override-popup__buttons">
-        <button type="button" data-override="jasper">Jasper</button>
-        <button type="button" data-override="enzo">Enzo</button>
-        <button type="button" data-override="ignore">Ignore</button>
-      </div>
+      <!-- One button per cat, plus Ignore; rebuilt by `main.ts` whenever the
+           registry changes. -->
+      <div class="override-popup__buttons" id="override-buttons"></div>
       <button id="override-clear" type="button" class="override-popup__clear">
         Clear override
       </button>
     </div>
+
+    <dialog id="cats-dialog" class="cats-dialog" aria-labelledby="cats-dialog-title">
+      <header class="cats-dialog__header">
+        <h2 id="cats-dialog-title">Manage cats</h2>
+        <button
+          type="button"
+          id="cats-dialog-close"
+          class="cats-dialog__close"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </header>
+
+      <!-- View 1: the roster. -->
+      <div id="cats-view-list" class="cats-dialog__body">
+        <ul class="cat-roster" id="cat-roster"></ul>
+        <button type="button" id="cat-add" class="primary-button">
+          Add a cat
+        </button>
+      </div>
+
+      <!-- View 2: add / edit form. -->
+      <form id="cats-view-form" class="cats-dialog__body cat-form" hidden>
+        <p class="cat-form__errors" id="cat-form-errors" role="alert" hidden></p>
+
+        <label class="cat-form__field">
+          <span>Name</span>
+          <input type="text" id="cat-name" required autocomplete="off" />
+        </label>
+
+        <label class="cat-form__field">
+          <span>Color</span>
+          <input type="color" id="cat-color" />
+        </label>
+
+        <label class="cat-form__field">
+          <span>Typical weight (kg)</span>
+          <input type="number" id="cat-weight" step="0.1" min="0.1" max="25" />
+          <small
+            >Readings are attributed to whichever cat's typical weight is
+            closest. It only needs to be nearer this cat than any other.</small
+          >
+        </label>
+
+        <label class="cat-form__field">
+          <span>First tracked</span>
+          <input type="date" id="cat-started" />
+          <small
+            >Optional. Readings before this date aren't attributed to this cat,
+            which keeps a newly added cat from claiming older history.</small
+          >
+        </label>
+
+        <label class="cat-form__field">
+          <span>Last tracked</span>
+          <input type="date" id="cat-ended" />
+          <small
+            >Set this if the cat has passed away or is no longer using the box.
+            Their history is kept; only later readings are excluded.</small
+          >
+        </label>
+
+        <label class="cat-form__field">
+          <span>Birthday</span>
+          <input type="date" id="cat-birthday" />
+        </label>
+
+        <label class="cat-form__field">
+          <span>Vendor pet ID</span>
+          <input type="text" id="cat-vendor-pet-id" autocomplete="off" />
+          <small
+            >Optional. If the vendor bulk export lists a
+            <code>pet_id</code> for this cat, readings carrying it are matched
+            exactly instead of by weight.</small
+          >
+        </label>
+
+        <label class="cat-form__field">
+          <span>Notes</span>
+          <textarea id="cat-notes" rows="2"></textarea>
+        </label>
+
+        <div class="cats-dialog__actions">
+          <button type="button" class="ghost-button" data-cats-cancel>
+            Cancel
+          </button>
+          <button type="submit" class="primary-button" id="cat-save">
+            Save
+          </button>
+        </div>
+      </form>
+
+      <!-- View 3: delete confirmation. Deliberately blunt about what deletion
+           is and isn't for. -->
+      <div id="cats-view-delete" class="cats-dialog__body" hidden>
+        <div class="danger-notice">
+          <h3>Deleting is only for mistakes</h3>
+          <p>
+            Delete a cat only to undo an entry that shouldn't exist — a typo, a
+            duplicate, or a cat added by accident.
+          </p>
+          <p>
+            <strong>If a cat has passed away, don't delete them.</strong> Set
+            <em>Last tracked</em> to their final date instead. That keeps their
+            full history in the charts and stops later readings from being
+            attributed to them.
+          </p>
+        </div>
+        <p class="cats-dialog__impact" id="cat-delete-impact"></p>
+        <div class="cats-dialog__actions">
+          <button type="button" class="ghost-button" data-cats-cancel>
+            Cancel
+          </button>
+          <button type="button" class="danger-button" id="cat-delete-confirm">
+            Delete permanently
+          </button>
+        </div>
+      </div>
+    </dialog>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

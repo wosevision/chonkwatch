@@ -11,12 +11,7 @@ import "chartjs-adapter-date-fns";
 import type { ChartConfiguration, ChartDataset } from "chart.js";
 
 import { localIsoDate } from "./aggregate.ts";
-import {
-  CAT_IDS,
-  CATS,
-  type CatId,
-  type WeightReading,
-} from "./types.ts";
+import type { Cat, WeightReading } from "./types.ts";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, TimeScale, Tooltip);
 
@@ -83,8 +78,8 @@ export class VisitsChart {
     this.chart = new Chart(canvas, config);
   }
 
-  update(readings: WeightReading[]): void {
-    this.chart.data.datasets = buildVisitDatasets(readings);
+  update(readings: WeightReading[], cats: Cat[]): void {
+    this.chart.data.datasets = buildVisitDatasets(readings, cats);
     this.chart.update();
   }
 
@@ -95,18 +90,18 @@ export class VisitsChart {
 
 function buildVisitDatasets(
   readings: WeightReading[],
+  cats: Cat[],
 ): ChartDataset<"bar", BarPoint[]>[] {
-  return CAT_IDS.map((catId) => buildCatVisits(readings, catId));
+  return cats.map((cat) => buildCatVisits(readings, cat));
 }
 
 function buildCatVisits(
   readings: WeightReading[],
-  catId: CatId,
+  cat: Cat,
 ): ChartDataset<"bar", BarPoint[]> {
-  const cat = CATS[catId];
   const counts = new Map<string, number>();
   for (const r of readings) {
-    if (r.catId !== catId) continue;
+    if (r.catId !== cat.id) continue;
     const key = localIsoDate(r.timestamp);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }

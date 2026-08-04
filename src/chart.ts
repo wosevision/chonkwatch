@@ -14,13 +14,13 @@ import zoomPlugin from "chartjs-plugin-zoom";
 import type { ChartConfiguration, ChartDataset } from "chart.js";
 
 import { aggregateDailyMedian, rollingMedian } from "./aggregate.ts";
+import { catName } from "./cats.ts";
 import { partitionByOutlier } from "./outliers.ts";
-import {
-  CAT_IDS,
-  CATS,
-  type CatId,
-  type ViewMode,
-  type WeightReading,
+import type {
+  Cat,
+  CatId,
+  ViewMode,
+  WeightReading,
 } from "./types.ts";
 
 Chart.register(
@@ -94,6 +94,8 @@ export interface RawClickInfo {
 
 export interface ChartUpdate {
   readings: WeightReading[];
+  /** The cat registry, in the order datasets should be built. */
+  cats: Cat[];
   view: ViewMode;
   hidden: Set<CatId>;
   outliers: Set<string>;
@@ -114,6 +116,9 @@ export class WeightChart {
   private chart: Chart<"line", BasePoint[]>;
   private themeMq: MediaQueryList;
   private handlers: ChartHandlers;
+  /** Latest registry, kept on the instance because the tooltip callback is
+   * built once at construction but needs current cat names. */
+  private cats: Cat[] = [];
 
   constructor(canvas: HTMLCanvasElement, handlers: ChartHandlers = {}) {
     this.handlers = handlers;
@@ -217,7 +222,7 @@ export class WeightChart {
                 if (meta.kind === "raw" || meta.kind === "raw-outlier") {
                   const p = ctx.raw as RawPoint;
                   const tag = p.isOutlier ? " · ⚠ outlier" : "";
-                  return `${CATS[p.catId].name}: ${p.y.toFixed(2)} kg${tag}`;
+                  return `${catName(this.cats, p.catId)}: ${p.y.toFixed(2)} kg${tag}`;
                 }
                 if (meta.kind === "median") {
                   const p = ctx.raw as DailyPoint;
@@ -266,11 +271,13 @@ export class WeightChart {
   }
 
   update(state: ChartUpdate): void {
+    this.cats = state.cats;
     const visibleReadings = state.readings.filter(
       (r) => !state.hidden.has(r.catId),
     );
     this.chart.data.datasets = buildDatasets(
       visibleReadings,
+      state.cats,
       state.view,
       state.outliers,
     );
@@ -318,23 +325,22 @@ function gridColor(): string {
 
 function buildDatasets(
   readings: WeightReading[],
+  cats: Cat[],
   view: ViewMode,
   outliers: Set<string>,
 ): ChartDataset<"line", BasePoint[]>[] {
   if (view === "raw") {
-    return CAT_IDS.flatMap((catId) =>
-      buildRawDatasets(readings, catId, outliers),
-    );
+    return cats.flatMap((cat) => buildRawDatasets(readings, cat, outliers));
   }
-  return CAT_IDS.flatMap((catId) => buildDailyDatasets(readings, catId));
+  return cats.flatMap((cat) => buildDailyDatasets(readings, cat));
 }
 
 function buildRawDatasets(
   readings: WeightReading[],
-  catId: CatId,
+  cat: Cat,
   outliers: Set<string>,
 ): ChartDataset<"line", BasePoint[]>[] {
-  const cat = CATS[catId];
+  const catId = cat.id;
   const { normal, outliers: bad } = partitionByOutlier(
     readings,
     outliers,
@@ -390,9 +396,9 @@ function buildRawDatasets(
 
 function buildDailyDatasets(
   readings: WeightReading[],
-  catId: CatId,
+  cat: Cat,
 ): ChartDataset<"line", BasePoint[]>[] {
-  const cat = CATS[catId];
+  const catId = cat.id;
   const aggregates = aggregateDailyMedian(
     readings.filter((r) => r.catId === catId),
   );

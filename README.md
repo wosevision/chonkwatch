@@ -1,8 +1,8 @@
 # chonkwatch
 
-A simple data visualization of Jasper's and Enzo's weight over time, sourced
-from CSV exports of a "smart" litter box's proprietary app. Designed to run
-locally with `npm run dev` or be deployed straight to Netlify.
+A simple data visualization of cat weight over time, sourced from CSV exports of
+a "smart" litter box's proprietary app. Designed to run locally with
+`npm run dev` or be deployed straight to Netlify.
 
 ## Getting started
 
@@ -29,6 +29,10 @@ Requires Node 20.19+ or 22.12+ (Vite 8).
 - **Drag-zoom and pan** on the chart (wheel/pinch to zoom, Alt-drag to
   box-zoom, Shift-drag to pan). A "Reset zoom" button appears once you've
   zoomed.
+- **Cat management** — add, edit, and (rarely) delete the cats being tracked,
+  from the "Manage cats" dialog. Each cat has a name, color, typical weight,
+  optional first/last tracked dates, birthday, vendor pet ID, and notes. The
+  registry is persisted server-side, so a phone and a desktop see the same cats.
 - **Per-cat hide toggles** on each cat card.
 - **Visits-per-day bar chart** under the main chart for activity context.
 - **Auto dark mode** following the OS `prefers-color-scheme`.
@@ -66,15 +70,46 @@ A few quirks worth knowing about:
   previous year for any rows whose `MM-DD` is later than the export's.
 - `Value` carries its unit. Anything other than `kg` is skipped with a
   console warning so a unit change can't silently corrupt the chart.
-- Multiple cats share the box. Readings are attributed to Jasper or Enzo
-  via a fixed weight threshold (see `src/classify.ts`). When a specific
-  reading misclassifies, click it in raw view to fix it; that override is
-  saved to `localStorage` and re-applied on every load.
+- Multiple cats share the box, and the CSV doesn't say who a reading belongs
+  to. Each reading is attributed to whichever cat's **typical weight** is
+  closest, considering only cats tracked on that date (see `src/classify.ts`).
+  The vendor bulk export is the exception — its rows carry a `pet_id`, which is
+  matched exactly against a cat's vendor pet ID. When a specific reading still
+  lands on the wrong cat, click it in raw view to fix it; that override is saved
+  to `localStorage` and re-applied on every load.
+
+## Managing cats
+
+Use **Manage cats** above the cat cards. On first run the registry is seeded
+with the two cats the app was built around and saved to the backend.
+
+Two fields do more than they look like they do:
+
+- **First tracked / Last tracked** bound the dates a cat is considered for
+  weight-based attribution. Setting *Last tracked* is how you record a cat that
+  has passed away or stopped using the box — their history stays in the charts
+  and only later readings are excluded. New cats default to "first tracked =
+  today" so that adding one doesn't retroactively claim an existing cat's
+  readings.
+- **Typical weight** is the whole basis of attribution. It doesn't need to be
+  exact, just closer to this cat than to any other. Two cats with nearly the
+  same typical weight over overlapping dates can't be told apart, and the form
+  will say so.
+
+**Deleting a cat is only for fixing mistakes** — a typo or a cat added by
+accident. It permanently removes the readings currently attributed to them and
+can't be undone from the app. If a cat has passed away, set *Last tracked*
+instead.
+
+Where the registry lives:
+
+- In dev: `data/cats.json`, written by the Vite dev API. Safe to commit.
+- In production: a Netlify Blobs store named `chonkwatch-cats`.
 
 ## Deploying to Netlify
 
-The repo includes a `netlify.toml` and a serverless function under
-`netlify/functions/`. To deploy:
+The repo includes a `netlify.toml` and two serverless functions under
+`netlify/functions/` (`/api/csvs` and `/api/cats`). To deploy:
 
 1. Push the repo to GitHub (or wherever).
 2. In Netlify, "Import from Git" and pick the repo. The default settings
@@ -95,7 +130,8 @@ That serves the Netlify Function and Blobs emulator alongside Vite. Plain
 
 ## Scripts
 
-- `npm run dev` — Vite dev server + filesystem-backed `/api/csvs`.
+- `npm run dev` — Vite dev server + filesystem-backed `/api/csvs` and
+  `/api/cats`.
 - `npm run build` — type-check both projects and produce a static build in
   `dist/`.
 - `npm run preview` — serve the production build locally (no API).
@@ -113,7 +149,7 @@ That serves the Netlify Function and Blobs emulator alongside Vite. Plain
   drag/wheel zoom and pan.
 - [Netlify Functions](https://docs.netlify.com/functions/overview/) +
   [Netlify Blobs](https://docs.netlify.com/blobs/overview/) — production
-  CSV persistence backend.
+  persistence backend for both the CSVs and the cat registry.
 
 See [`AGENTS.md`](./AGENTS.md) for a tour of the source layout, the
 dev/prod architecture split, and the small pile of CSV-format gotchas.

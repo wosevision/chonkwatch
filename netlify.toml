@@ -11,9 +11,9 @@
   framework = "vite"
   targetPort = 5173
 
-# All other routes fall through to the SPA. The `/api/csvs` function declares
-# its own `path` via the v2 function config, so we don't need an explicit
-# rewrite for it here.
+# All other routes fall through to the SPA. The `/api/csvs` and `/api/cats`
+# functions each declare their own `path` via the v2 function config, so we
+# don't need explicit rewrites for them here.
 [[redirects]]
   from = "/*"
   to = "/index.html"
